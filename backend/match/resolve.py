@@ -13,7 +13,6 @@ surfaces the runners-up so the agent can ask instead of guessing.
 from __future__ import annotations
 
 import re
-import unicodedata
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -31,65 +30,55 @@ MIN_SCORE = 20
 DECISIVE_GAP = 25
 
 
-# The catalogue is in English; a worker may not be. Mapping at the edge keeps
-# one set of documents and one matcher, rather than a translated copy of both.
-# Keys are accent-stripped and lowercased before lookup, so "brocoli" and
-# "brócoli" both land.
-COMMODITY_ES = {
-    "esparragos": "asparagus", "aguacate": "avocado", "aguacates": "avocado",
-    "palta": "avocado", "betabel": "beets", "remolacha": "beets",
-    "arandanos": "blueberries", "brocoli": "broccoli", "col": "cabbage",
-    "repollo": "cabbage", "zanahoria": "carrots", "zanahorias": "carrots",
-    "coliflor": "cauliflower", "apio": "celery", "maiz": "corn",
-    "elote": "corn", "pepino": "cucumbers", "pepinos": "cucumbers",
-    "ejotes": "green beans", "judias": "green beans", "hierbas": "herbs",
-    "lechuga iceberg": "iceberg", "col rizada": "kale", "limon": "lemons",
-    "limones": "lemons", "lechuga": "lettuce", "lima": "limes", "limas": "limes",
-    "mezcla de verduras": "mixed greens", "champinones": "mushrooms",
-    "hongos": "mushrooms", "setas": "mushrooms", "cebolla": "onions",
-    "cebollas": "onions", "naranja": "oranges", "naranjas": "oranges",
-    "pimiento": "peppers", "pimientos": "peppers", "chiles": "peppers",
-    "papa": "potatoes", "papas": "potatoes", "patata": "potatoes",
-    "patatas": "potatoes", "rabano": "radish", "rabanos": "radish",
-    "romana": "romaine", "lechuga romana": "romaine", "espinaca": "spinach",
-    "espinacas": "spinach", "calabaza": "squash", "fresa": "strawberries",
-    "fresas": "strawberries", "frutilla": "strawberries",
-    "frutillas": "strawberries", "jitomate": "tomatoes",
-    "jitomates": "tomatoes", "tomate": "tomatoes", "tomates": "tomatoes",
-    "calabacin": "zucchini", "calabacita": "zucchini",
+# The catalogue is in English; a worker may not be. Mapping at the edge keeps one
+# set of documents and one matcher, rather than a translated copy of both.
+COMMODITY_ZH = {
+    "芦笋": "asparagus", "牛油果": "avocado", "鳄梨": "avocado",
+    "甜菜": "beets", "紅菜頭": "beets", "蓝莓": "blueberries",
+    "西兰花": "broccoli", "西蘭花": "broccoli", "花椰菜": "broccoli",
+    "卷心菜": "cabbage", "包菜": "cabbage", "胡萝卜": "carrots",
+    "菜花": "cauliflower", "花椰": "cauliflower", "芌荀": "celery",
+    "玉米": "corn", "黄瓜": "cucumbers", "青豆": "green beans",
+    "四季豆": "green beans", "香草": "herbs", "结球生菜": "iceberg",
+    "羽衣甘蓝": "kale", "甘蓝": "kale", "柠檬": "lemons",
+    "生菜": "lettuce", "青柠": "limes", "混合蔬菜": "mixed greens",
+    "蘑菇": "mushrooms", "洋葱": "onions", "洋子": "oranges",
+    "橙子": "oranges", "辣椒": "peppers", "青椒": "peppers",
+    "土豆": "potatoes", "马铃薯": "potatoes", "萝卜": "radish",
+    "罗马生菜": "romaine", "菠菜": "spinach", "南瓜": "squash",
+    "草莓": "strawberries", "番茄": "tomatoes", "西红柿": "tomatoes",
+    "西葵芦": "zucchini", "青少": "zucchini",
 }
-
-
-def strip_accents(text: str | None) -> str:
-    return "".join(
-        ch for ch in unicodedata.normalize("NFD", text or "")
-        if unicodedata.category(ch) != "Mn"
-    )
 
 
 def to_catalogue_item(item: str | None) -> str | None:
     """Map a spoken commodity onto the name the documents use."""
     if not item:
         return None
-    key = strip_accents(item).strip().casefold()
-    return COMMODITY_ES.get(key, item)
+    key = (item or "").strip().casefold()
+    if key in COMMODITY_ZH:
+        return COMMODITY_ZH[key]
+    # Chinese arrives without spaces, so a commodity is often embedded in a
+    # longer run of characters rather than standing alone.
+    for zh, en in COMMODITY_ZH.items():
+        if zh in item:
+            return en
+    return item
 
 
-# One preferred Spanish word per commodity, for speaking back. The lookup above
-# is many-to-one (fresa, fresas, frutilla all mean strawberries); this picks the
-# one the agent says.
-COMMODITY_EN_TO_ES = {
-    "asparagus": "esp\u00e1rragos", "avocado": "aguacate", "beets": "betabel",
-    "blueberries": "ar\u00e1ndanos", "broccoli": "br\u00f3coli", "cabbage": "repollo",
-    "carrots": "zanahorias", "cauliflower": "coliflor", "celery": "apio",
-    "corn": "ma\u00edz", "cucumbers": "pepinos", "green beans": "ejotes",
-    "herbs": "hierbas", "iceberg": "lechuga iceberg", "kale": "col rizada",
-    "lemons": "limones", "lettuce": "lechuga", "limes": "limas",
-    "mixed greens": "mezcla de verduras", "mushrooms": "champi\u00f1ones",
-    "onions": "cebollas", "oranges": "naranjas", "peppers": "pimientos",
-    "potatoes": "papas", "radish": "r\u00e1banos", "romaine": "lechuga romana",
-    "spinach": "espinacas", "squash": "calabaza", "strawberries": "fresas",
-    "tomatoes": "tomates", "zucchini": "calabac\u00edn",
+# One preferred Chinese word per commodity, for speaking back.
+COMMODITY_EN_TO_ZH = {
+    "asparagus": "芦笋", "avocado": "牛油果", "beets": "甜菜",
+    "blueberries": "蓝莓", "broccoli": "西兰花", "cabbage": "卷心菜",
+    "carrots": "胡萝卜", "cauliflower": "菜花", "celery": "芌荀",
+    "corn": "玉米", "cucumbers": "黄瓜", "green beans": "青豆",
+    "herbs": "香草", "iceberg": "结球生菜", "kale": "羽衣甘蓝",
+    "lemons": "柠檬", "lettuce": "生菜", "limes": "青柠",
+    "mixed greens": "混合蔬菜", "mushrooms": "蘑菇", "onions": "洋葱",
+    "oranges": "橙子", "peppers": "辣椒", "potatoes": "土豆",
+    "radish": "萝卜", "romaine": "罗马生菜", "spinach": "菠菜",
+    "squash": "南瓜", "strawberries": "草莓", "tomatoes": "番茄",
+    "zucchini": "西葵芦",
 }
 
 
@@ -97,9 +86,9 @@ def spoken_item(item: str | None, lang: str = "en") -> str:
     """The commodity name to say back, in the worker's language."""
     if not item:
         return ""
-    if lang != "es":
+    if lang != "zh":
         return item
-    return COMMODITY_EN_TO_ES.get(item.strip().casefold(), item)
+    return COMMODITY_EN_TO_ZH.get(item.strip().casefold(), item)
 
 
 def norm(text: str | None) -> str:

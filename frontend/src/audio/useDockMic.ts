@@ -106,7 +106,7 @@ export function useDockMic(
       const turn = payload as DockTurn;
       setLastTurn(turn);
       onTurn?.(turn);
-      setStatus(`Heard${turn.language === "es" ? " (es)" : ""}: “${turn.utterance}”`);
+      setStatus(`Heard${turn.language === "zh" ? " (zh)" : ""}: “${turn.utterance}”`);
 
       if (turn.reply) {
         setState("speaking");

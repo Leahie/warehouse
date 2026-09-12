@@ -71,7 +71,7 @@ class MatchResult:
     suggested_status: str = "committed"
     clarification_kind: str | None = None
     clarification_question: str | None = None
-    clarification_question_es: str | None = None
+    clarification_question_zh: str | None = None
     flag_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -96,7 +96,7 @@ class MatchResult:
             "suggested_status": self.suggested_status,
             "clarification_kind": self.clarification_kind,
             "clarification_question": self.clarification_question,
-            "clarification_question_es": self.clarification_question_es,
+            "clarification_question_zh": self.clarification_question_zh,
             "flag_reason": self.flag_reason,
         }
 
@@ -176,7 +176,7 @@ def match_receipt(
     misread_slip = qty_slip is not None and qty_pair_slip_voice == "mismatch"
 
     question = None
-    question_es = None
+    question_zh = None
     kind = None
     status = "committed"
     flag_reason = None
@@ -219,9 +219,9 @@ def match_receipt(
             f"You said lot {lot_voice}, the packing slip says {lot_slip}. "
             "Which lot is on the pallet?"
         )
-        question_es = (
-            f"Usted dijo lote {lot_voice}, pero la lista de empaque dice {lot_slip}. "
-            "\u00bfCu\u00e1l lote est\u00e1 en la tarima?"
+        question_zh = (
+            f"\u60a8\u8bf4\u7684\u662f\u6279\u53f7 {lot_voice}\uff0c\u4f46\u88c5\u7bb1\u5355\u4e0a\u662f {lot_slip}\u3002"
+            "\u6258\u76d8\u4e0a\u662f\u54ea\u4e2a\u6279\u53f7\uff1f"
         )
     elif misread_slip:
         status = "pending_clarification"
@@ -230,9 +230,9 @@ def match_receipt(
             f"You said {qty_voice} {unit}, the packing slip shows {qty_slip} — "
             "which number is on the slip?"
         )
-        question_es = (
-            f"Usted dijo {qty_voice} {unit}, la lista de empaque muestra {qty_slip}. "
-            "\u00bfQu\u00e9 n\u00famero aparece en la lista?"
+        question_zh = (
+            f"\u60a8\u8bf4 {qty_voice}\uff0c\u88c5\u7bb1\u5355\u4e0a\u662f {qty_slip}\u3002"
+            "\u5355\u636e\u4e0a\u5199\u7684\u662f\u54ea\u4e2a\u6570\uff1f"
         )
     elif dock_vs_office:
         status = "pending_clarification"
@@ -241,11 +241,11 @@ def match_receipt(
             f"Packing slip shows {qty_dock} {unit} of {item or item_po or 'this item'}; "
             f"PO and bill of lading say {qty_po}. Can you confirm the count?"
         )
-        question_es = (
-            f"La lista de empaque muestra {qty_dock} de "
-            f"{spoken_item(item or item_po, 'es') or 'este producto'}; "
-            f"la orden y el conocimiento de embarque dicen {qty_po}. "
-            "\u00bfPuede confirmar la cantidad?"
+        question_zh = (
+            f"\u88c5\u7bb1\u5355\u4e0a\u662f {qty_dock} "
+            f"{spoken_item(item or item_po, 'zh') or '\u8be5\u54c1\u9879'}\uff0c"
+            f"\u8ba2\u5355\u548c\u63d0\u5355\u4e0a\u662f {qty_po}\u3002"
+            "\u60a8\u80fd\u786e\u8ba4\u6570\u91cf\u5417\uff1f"
         )
     elif temp.get("value") is not None and not temp.get("unit"):
         # Only ask when a reading was actually given. The parsed temperature is
@@ -254,7 +254,7 @@ def match_receipt(
         status = "pending_clarification"
         kind = "temperature_unit"
         question = "Was this temperature in Fahrenheit or Celsius?"
-        question_es = "\u00bfEsa temperatura era en Fahrenheit o Celsius?"
+        question_zh = "\u8fd9\u4e2a\u6e29\u5ea6\u662f\u534e\u6c0f\u8fd8\u662f\u6444\u6c0f\uff1f"
 
     return MatchResult(
         po_id=(po or {}).get("po_id") or (po or {}).get("doc_id"),
@@ -277,6 +277,6 @@ def match_receipt(
         suggested_status=status,
         clarification_kind=kind,
         clarification_question=question,
-        clarification_question_es=question_es,
+        clarification_question_zh=question_zh,
         flag_reason=flag_reason,
     )

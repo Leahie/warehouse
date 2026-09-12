@@ -54,7 +54,7 @@ def transcribe_detailed(data: bytes, filename: str, base: str) -> tuple[str, str
     if isinstance(payload, dict) and "text" in payload:
         # whisper reports the full name ("spanish"); normalise to a short code.
         raw = str(payload.get("language") or "").strip().lower()
-        language = {"spanish": "es", "english": "en"}.get(raw, raw[:2] or None)
+        language = {"chinese": "zh", "mandarin": "zh", "english": "en"}.get(raw, raw[:2] or None)
         return str(payload["text"]).strip(), language
     if isinstance(payload, str):
         return payload.strip(), None

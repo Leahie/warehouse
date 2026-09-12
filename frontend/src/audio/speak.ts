@@ -7,12 +7,12 @@ let warmed = false;
 function pickVoice(lang: string): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis?.getVoices?.() ?? [];
   if (!voices.length) return null;
-  const prefix = lang === "es" ? "es" : "en";
-  // A Spanish reply read by an English voice is close to unintelligible, so
-  // match the language first and only then prefer a natural-sounding voice.
+  const prefix = lang === "zh" ? "zh" : "en";
+  // Mandarin read by an English voice is unintelligible, so match the language
+  // first and only then prefer a natural-sounding voice.
   const inLanguage = voices.filter((v) => new RegExp(`^${prefix}[-_]`, "i").test(v.lang));
   return (
-    inLanguage.find((v) => /natural|neural|google|m[oó]nica|paulina|samantha/i.test(v.name)) ??
+    inLanguage.find((v) => /natural|neural|google|tingting|ting-ting|huihui|yaoyao/i.test(v.name)) ??
     inLanguage[0] ??
     voices.find((v) => /^en[-_]/i.test(v.lang)) ??
     voices[0]
@@ -35,11 +35,11 @@ export function speak(
   const synth = window.speechSynthesis;
   synth.cancel();
 
-  const lang = opts.lang === "es" ? "es" : "en";
+  const lang = opts.lang === "zh" ? "zh" : "en";
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = opts.rate ?? 1.02;
   utter.pitch = 1;
-  utter.lang = lang === "es" ? "es-MX" : "en-US";
+  utter.lang = lang === "zh" ? "zh-CN" : "en-US";
   const voice = pickVoice(lang);
   if (voice) utter.voice = voice;
   utter.onend = () => opts.onEnd?.();
