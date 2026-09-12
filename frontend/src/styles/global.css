@@ -260,6 +260,10 @@
     animation: row-in 220ms ease-out both;
   }
 
+  .animate-text-in {
+    animation: text-in 260ms ease-out both;
+  }
+
   .animate-dropdown {
     animation: dropdown-in 160ms ease-out both;
   }
@@ -282,6 +286,17 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes text-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

@@ -1,3 +1,4 @@
+import { House } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Selector } from "@/components/Selector";
 import { APP_ROUTES } from "@/constants/routes";
@@ -22,7 +23,8 @@ export function AppHeader() {
 
   return (
     <header className="bg-brand-green relative z-40 flex h-14 items-center justify-between gap-4 px-8">
-      <Link to="/" className="text-wordmark text-on-brand no-underline">
+      <Link to="/" className="text-wordmark text-on-brand inline-flex items-center gap-2 no-underline">
+        <House className="size-5" strokeWidth={2} aria-hidden />
         WareInHouse
       </Link>
 

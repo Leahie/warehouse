@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import voiceData from "@/assets/data/voice_sessions.json";
 import alertsData from "@/assets/data/alerts.json";
+import { LoadingPanel } from "@/components/LoadingIcon";
 import { ChatBubble } from "@/components/voice/ChatBubble";
 import { StageChip } from "@/components/voice/StageChip";
 import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
@@ -298,12 +299,14 @@ export function VoicePage() {
             </div>
           ) : null}
 
-          <div className="flex-1 space-y-2 overflow-y-auto p-4">
+          <div key={currentId ?? "empty"} className="flex-1 space-y-2 overflow-y-auto p-4">
             {isLoading && !current ? (
-              <p className="text-body2-default text-secondary">Loading voice logs…</p>
+              <div className="flex h-full items-center justify-center">
+                <LoadingPanel label="Loading voice logs…" />
+              </div>
             ) : (
-              current?.messages.map((message) => (
-                <ChatBubble key={message.id} message={message} />
+              current?.messages.map((message, index) => (
+                <ChatBubble key={message.id} message={message} index={index} />
               ))
             )}
           </div>

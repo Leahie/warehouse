@@ -26,10 +26,12 @@ function sessionTitle(session: VoiceSession) {
 function LogCard({
   session,
   active,
+  index,
   onSelect,
 }: {
   session: VoiceSession;
   active: boolean;
+  index: number;
   onSelect: (sessionId: string) => void;
 }) {
   const live = session.stage !== "done";
@@ -38,18 +40,19 @@ function LogCard({
     <button
       type="button"
       className={[
-        "mb-1 w-full rounded-default px-3 py-2 text-left transition-colors outline-none focus:outline-none focus-visible:outline-none",
+        "animate-card-in mb-1 w-full rounded-default px-3 py-2 text-left transition-colors outline-none focus:outline-none focus-visible:outline-none",
         active ? "bg-brand-green-soft" : "hover:bg-core-surface-ii",
         session.is_alert ? "border-l-4" : "border-l-2 border-transparent",
       ].join(" ")}
-      style={
-        session.is_alert
+      style={{
+        animationDelay: `${Math.min(index, 12) * 40}ms`,
+        ...(session.is_alert
           ? {
               borderLeftColor: "var(--color-status-flagged)",
               background: active ? undefined : "var(--color-alert-wash)",
             }
-          : undefined
-      }
+          : {}),
+      }}
       onClick={() => onSelect(session.session_id)}
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -143,11 +146,12 @@ export function VoiceSidebar({
               In Progress
             </span>
             <ul className="mt-1 list-none p-0">
-              {activeUnfinished.map((session) => (
+              {activeUnfinished.map((session, index) => (
                 <li key={session.session_id}>
                   <LogCard
                     session={session}
                     active={session.session_id === activeId}
+                    index={index}
                     onSelect={onSelect}
                   />
                 </li>
@@ -161,11 +165,12 @@ export function VoiceSidebar({
             Logged Conversations
           </span>
           <ul className="mt-1 list-none p-0">
-            {archived.map((session) => (
+            {archived.map((session, index) => (
               <li key={session.session_id}>
                 <LogCard
                   session={session}
                   active={session.session_id === activeId}
+                  index={index}
                   onSelect={onSelect}
                 />
               </li>
