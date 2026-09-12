@@ -80,16 +80,23 @@ class Store:
 
     def insert_voice_event(self, doc: dict[str, Any], actor: str = "ingest") -> dict[str, Any]:
         self.db.voice_events.update_one({"event_id": doc["event_id"]}, {"$set": doc}, upsert=True)
+        # session_id rides on every voice event so the pane can group a thread
+        # the way the browser saw it, instead of inferring threads from lot codes.
+        session_id = doc.get("session_id")
         self.emit("voice_received", "voice", actor, "voice_events", doc["event_id"], {
             "utterance": doc.get("utterance"),
             "worker_id": doc.get("worker_id"),
             "lot_code": (doc.get("parsed") or {}).get("lot_code"),
             "item": (doc.get("parsed") or {}).get("item"),
             "order_id": doc.get("order_id"),
+            "session_id": session_id,
         })
         parsed = doc.get("parsed")
         if parsed:
-            self.emit("voice_parsed", "voice", actor, "voice_events", doc["event_id"], parsed)
+            self.emit(
+                "voice_parsed", "voice", actor, "voice_events", doc["event_id"],
+                {**parsed, "session_id": session_id},
+            )
         return doc
 
     def papers_for_po(self, po_id: str) -> dict[str, dict[str, Any] | None]:
@@ -102,6 +109,92 @@ class Store:
             out[doc.get("doc_type")] = doc
         return out
 
+    # How far back an unresolved utterance still counts as part of the same
+    # exchange. Long enough for a worker to think, short enough that the next
+    # pallet does not inherit the last one's details.
+    PENDING_WINDOW_S = 180
+
+    def pending_context(self, worker_id: str) -> list[dict[str, Any]]:
+        """Parsed fields from this worker's recent utterances that never resolved."""
+        cutoff = _now().timestamp() - self.PENDING_WINDOW_S
+        out: list[dict[str, Any]] = []
+        for event in (
+            self.db.voice_events.find({"worker_id": worker_id}, {"_id": 0})
+            .sort("_id", -1)
+            .limit(8)
+        ):
+            received = event.get("received_at")
+            if hasattr(received, "timestamp") and received.timestamp() < cutoff:
+                break
+            if event.get("context_cleared"):
+                break
+            parsed = event.get("parsed") or {}
+            if parsed:
+                out.append(parsed)
+        return out
+
+    def clear_pending_context(self, worker_id: str | None) -> None:
+        """Mark the trail consumed, so the next receipt starts clean."""
+        if not worker_id:
+            return
+        latest = self.db.voice_events.find_one(
+            {"worker_id": worker_id}, {"_id": 1}, sort=[("_id", -1)]
+        )
+        if latest:
+            self.db.voice_events.update_one(
+                {"_id": latest["_id"]}, {"$set": {"context_cleared": True}}
+            )
+
+    # Shipped defaults for a new site; the warehouse overrides these.
+    DEFAULT_TEMP_LIMITS_F = (33.0, 41.0)
+
+    def temperature_limits(self, item: str | None = None) -> tuple[float, float]:
+        """This warehouse's holding range, per commodity where it has set one."""
+        doc = self.db.settings.find_one({"setting_id": "temperature"}) or {}
+        per_item = (doc.get("per_item") or {}).get((item or "").strip().casefold())
+        if per_item:
+            return (float(per_item["min_f"]), float(per_item["max_f"]))
+        if doc.get("min_f") is not None and doc.get("max_f") is not None:
+            return (float(doc["min_f"]), float(doc["max_f"]))
+        return self.DEFAULT_TEMP_LIMITS_F
+
+    def get_temperature_settings(self) -> dict[str, Any]:
+        doc = self.db.settings.find_one({"setting_id": "temperature"}, {"_id": 0})
+        if doc:
+            return doc
+        return {
+            "setting_id": "temperature",
+            "min_f": self.DEFAULT_TEMP_LIMITS_F[0],
+            "max_f": self.DEFAULT_TEMP_LIMITS_F[1],
+            "per_item": {},
+            "source": "default",
+        }
+
+    def set_temperature_settings(
+        self,
+        min_f: float | None = None,
+        max_f: float | None = None,
+        per_item: dict[str, Any] | None = None,
+        actor: str = "api",
+    ) -> dict[str, Any]:
+        current = self.get_temperature_settings()
+        doc = {
+            "setting_id": "temperature",
+            "min_f": float(min_f) if min_f is not None else current.get("min_f"),
+            "max_f": float(max_f) if max_f is not None else current.get("max_f"),
+            "per_item": {
+                k.strip().casefold(): v
+                for k, v in (per_item if per_item is not None else current.get("per_item") or {}).items()
+            },
+            "source": "warehouse",
+            "updated_at": _now(),
+        }
+        self.db.settings.update_one({"setting_id": "temperature"}, {"$set": doc}, upsert=True)
+        self.emit("settings_updated", "database", actor, "settings", "temperature", {
+            "min_f": doc["min_f"], "max_f": doc["max_f"], "per_item": doc["per_item"],
+        })
+        return {k: v for k, v in doc.items() if k != "_id"}
+
     def find_candidates(self, parsed: dict[str, Any] | None) -> list[dict[str, Any]]:
         """Purchase orders the worker might have meant, best first.
 
@@ -110,7 +203,9 @@ class Store:
         order. Ranking lives in match.resolve; this only supplies documents.
         """
         parsed = parsed or {}
-        if not any(parsed.get(k) for k in ("lot_code", "item", "supplier", "sku", "quantity")):
+        if not any(
+            parsed.get(k) for k in ("po_id", "lot_code", "item", "supplier", "sku", "quantity")
+        ):
             return []
         docs = list(self.db.source_documents.find({}, {"_id": 0}))
         return resolve.rank(parsed, docs)
@@ -146,10 +241,11 @@ class Store:
             "quantity_expected": data.get("quantity_expected"),
             "quantity_received": data.get("quantity_received"),
             "unit": data.get("unit"),
-            "quality": existing.get("quality"),
+            # A worker's read of the pallet wins over a stale value.
+            "quality": data.get("quality") or existing.get("quality"),
+            "temperature": data.get("temperature") or existing.get("temperature"),
             "lot_code": data.get("lot_code"),
             "supplier": data.get("supplier"),
-            "temperature": existing.get("temperature"),
             "status": status,
             "match": {
                 "po_vs_bol": data.get("po_vs_bol"),
@@ -565,6 +661,13 @@ class Store:
     def get_investigation(self, investigation_id: str) -> dict[str, Any] | None:
         return self.db.investigations.find_one({"investigation_id": investigation_id}, {"_id": 0})
 
+    def open_clarification_for_order(self, order_id: str | None) -> dict[str, Any] | None:
+        if not order_id:
+            return None
+        return self.db.clarifications.find_one(
+            {"order_id": order_id, "status": "open"}, {"_id": 0}
+        )
+
     def latest_open_clarification(self, worker_id: str | None = None) -> dict[str, Any] | None:
         """The question a worker is most plausibly answering right now.
 
@@ -584,6 +687,20 @@ class Store:
             ]
             for lot in lots:
                 order = self.db.orders.find_one({"lot_code": lot}, {"_id": 0})
+                if not order:
+                    # Spoken lot codes lose their punctuation: match on the
+                    # alphanumerics alone before giving up.
+                    target = resolve.norm_code(lot)
+                    order = next(
+                        (
+                            o
+                            for o in self.db.orders.find(
+                                {"lot_code": {"$ne": None}}, {"_id": 0}
+                            )
+                            if resolve.norm_code(o.get("lot_code")) == target
+                        ),
+                        None,
+                    )
                 if not order:
                     continue
                 clq = self.db.clarifications.find_one(

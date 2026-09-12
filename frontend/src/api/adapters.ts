@@ -150,6 +150,10 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
 
   const keyOf = (e: ApiEvent): string => {
     const p = (e.payload ?? {}) as Record<string, unknown>;
+    // The browser tells us which conversation a turn belonged to. Trust that
+    // over anything inferred: it is the only thing that knows two unresolved
+    // utterances were part of the same exchange.
+    if (typeof p.session_id === "string" && p.session_id) return p.session_id;
     if (typeof p.order_id === "string" && p.order_id) return p.order_id;
     if (typeof p.lot_code === "string" && p.lot_code) {
       return orderByLot.get(p.lot_code)?.order_id ?? `lot:${p.lot_code}`;

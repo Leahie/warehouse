@@ -14,6 +14,7 @@ export function App() {
           <Route path="logs" element={<LogsPage />} />
           <Route path="database" element={<DatabasePage />} />
           <Route path="voice" element={<VoicePage />} />
+          <Route path="voice/:sessionId" element={<VoicePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

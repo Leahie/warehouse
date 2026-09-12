@@ -1,69 +1,128 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import voiceData from "@/assets/data/voice_sessions.json";
 import alertsData from "@/assets/data/alerts.json";
 import { ChatBubble } from "@/components/voice/ChatBubble";
 import { StageChip } from "@/components/voice/StageChip";
 import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
 import type { AlertCard } from "@/types/alert";
-import type { VoiceSession } from "@/types/voice";
+import type { ChatMessage, VoiceSession } from "@/types/voice";
 import { useVoiceSessions } from "@/api/useLiveData";
 import { useDockMic } from "@/audio/useDockMic";
 import { speechSupported, stopSpeaking } from "@/audio/speak";
 
 const seedSessions = voiceData as VoiceSession[];
 const seedIds = new Set(seedSessions.map((s) => s.session_id));
-const alerts = alertsData as AlertCard[];
 
-function newBlankSession(): VoiceSession {
+// A scratch conversation so the dock can be demonstrated without a matching
+// order on file. Every turn that does not resolve to an order lands here
+// instead of disappearing.
+const SCRATCH_ID = "VS-SCRATCH";
+
+function blankScratch(): VoiceSession {
   return {
-    session_id: `VS-${Date.now()}`,
+    session_id: SCRATCH_ID,
     stage: "parsing",
     is_alert: false,
     created_at: new Date().toISOString(),
     summary: null,
-    messages: [
-      {
-        id: `sys-${Date.now()}`,
-        role: "system",
-        text: "Parsing…",
-        at: new Date().toISOString(),
-      },
-      {
-        id: `user-speaking-${Date.now()}`,
-        role: "user",
-        text: "…",
-        state: "speaking",
-        at: new Date().toISOString(),
-      },
-    ],
+    messages: [],
   };
 }
+const alerts = alertsData as AlertCard[];
 
 export function VoicePage() {
   const [searchParams] = useSearchParams();
-  const [sessions, setSessions] = useState<VoiceSession[]>([]);
+  const { sessionId: routeSessionId } = useParams();
+  const navigate = useNavigate();
+  // Three layers, kept apart so a 4-second poll cannot wipe local work:
+  //   liveSessions  derived from the API, replaced wholesale on every poll
+  //   localSessions created in the browser (a blank log, an alert drill-down)
+  //   overrides     local edits to any session, which win over the live copy
+  const [localSessions, setLocalSessions] = useState<VoiceSession[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, VoiceSession>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The mic callback runs long after render, so it reads sessions through a ref.
+  const sessionsRef = useRef<VoiceSession[]>([]);
+  // The order the worker is looking at, sent with each recording.
+  const currentOrderRef = useRef<string | null>(null);
+  const currentIdRef = useRef<string | null>(null);
   const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions);
 
-  // Fold server-derived sessions in on every poll without discarding sessions
-  // created locally (a live recording, or one opened from an alert). Seeded
-  // demo sessions drop out as soon as the API returns anything real.
+  const sessions = useMemo(() => {
+    const liveIds = new Set(liveSessions.map((s) => s.session_id));
+    const localOnly = localSessions.filter(
+      (s) => !liveIds.has(s.session_id) && !seedIds.has(s.session_id),
+    );
+    return [...localOnly, ...liveSessions].map((s) => overrides[s.session_id] ?? s);
+  }, [liveSessions, localSessions, overrides]);
+
   useEffect(() => {
-    setSessions((prev) => {
-      const liveIds = new Set(liveSessions.map((s) => s.session_id));
-      const localOnly = prev.filter(
-        (s) => !liveIds.has(s.session_id) && !seedIds.has(s.session_id),
-      );
-      return [...localOnly, ...liveSessions];
-    });
-  }, [liveSessions]);
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
   const mic = useDockMic({
+    contextOrderId: currentOrderRef.current,
+    sessionId: currentIdRef.current,
     onTurn: (turn) => {
-      // Jump to the order this turn touched so the transcript is on screen.
-      if (turn.order?.order_id) setSelectedId(`VS-${turn.order.order_id}`);
+      // Keep the exchange where it started. Jumping to the order's own session
+      // the moment it resolves splits one conversation across two threads and
+      // looks like a new chat appearing.
+      const viewing = currentIdRef.current;
+      const targetId =
+        viewing && viewing !== SCRATCH_ID
+          ? viewing
+          : viewing === SCRATCH_ID
+            ? SCRATCH_ID
+            : turn.order?.order_id
+              ? `VS-${turn.order.order_id}`
+              : SCRATCH_ID;
+      const now = new Date().toISOString();
+      const heard: ChatMessage = {
+        id: `u-${turn.event_id}`,
+        role: "user",
+        text: turn.utterance,
+        state: "parsed",
+        at: now,
+      };
+      const said: ChatMessage = {
+        id: `a-${turn.event_id}`,
+        role: "agent",
+        text: turn.reply,
+        at: now,
+      };
+
+      // Show the exchange now. Waiting for the next poll makes the dock feel
+      // broken, and an unresolved turn never arrives from the server at all.
+      setOverrides((prev) => {
+        const base =
+          prev[targetId] ??
+          sessionsRef.current.find((s) => s.session_id === targetId) ??
+          (targetId === SCRATCH_ID ? blankScratch() : null);
+        if (!base) return prev;
+        return {
+          ...prev,
+          [targetId]: {
+            ...base,
+            // Once a turn identifies an order, the thread adopts it rather than
+            // the conversation moving elsewhere.
+            order_id: turn.order?.order_id ?? base.order_id,
+            is_alert: turn.order?.status === "flagged" || base.is_alert,
+            stage: turn.mode === "clarification_answer" ? "logging_data" : "confirming",
+            messages: [...base.messages, heard, said],
+          },
+        };
+      });
+      if (targetId === SCRATCH_ID) {
+        setLocalSessions((prev) =>
+          prev.some((s) => s.session_id === SCRATCH_ID) ? prev : [blankScratch(), ...prev],
+        );
+      }
+      if (currentIdRef.current !== targetId) {
+        setSelectedId(targetId);
+        navigate(`/voice/${encodeURIComponent(targetId)}`);
+      }
     },
   });
 
@@ -95,6 +154,7 @@ export function VoicePage() {
       if (match) {
         appliedDeepLink.current = key;
         setSelectedId(match.session_id);
+        navigate(`/voice/${encodeURIComponent(match.session_id)}`, { replace: true });
         return;
       }
 
@@ -124,7 +184,7 @@ export function VoicePage() {
           ],
         };
         appliedDeepLink.current = key;
-        setSessions((prev) => [created, ...prev]);
+        setLocalSessions((prev) => [created, ...prev]);
         setSelectedId(created.session_id);
       }
     }
@@ -135,16 +195,20 @@ export function VoicePage() {
     return live?.session_id ?? sessions[0]?.session_id ?? null;
   }, [sessions]);
 
-  const currentId = selectedId ?? activeLiveId;
+  // The URL owns the selection so a conversation can be linked and reloaded.
+  const currentId = routeSessionId ?? selectedId ?? activeLiveId;
   const current = sessions.find((s) => s.session_id === currentId) ?? null;
+
+  useEffect(() => {
+    currentOrderRef.current = current?.order_id ?? null;
+    currentIdRef.current = currentId;
+  }, [current, currentId]);
 
   function playDemoStep() {
     if (!current || current.stage === "done") return;
 
-    setSessions((prev) =>
-      prev.map((session) => {
-        if (session.session_id !== current.session_id) return session;
-
+    setOverrides((prev) => {
+      const advanced = ((session: VoiceSession): VoiceSession => {
         if (session.stage === "parsing") {
           const withoutSpeaking = session.messages.filter((m) => m.state !== "speaking");
           return {
@@ -231,24 +295,19 @@ export function VoicePage() {
             },
           ],
         };
-      }),
-    );
-
-    setSessions((prev) => {
-      const currentSession = prev.find((s) => s.session_id === current.session_id);
-      if (currentSession?.stage === "done" && !prev.some((s) => s.stage !== "done")) {
-        const blank = newBlankSession();
-        setSelectedId(blank.session_id);
-        return [...prev, blank];
-      }
-      return prev;
+      })(current);
+      return { ...prev, [current.session_id]: advanced };
     });
   }
 
-  function startNextLog() {
-    const blank = newBlankSession();
-    setSessions((prev) => [blank, ...prev]);
-    setSelectedId(blank.session_id);
+  /** Open an empty conversation that is not attached to any order on file. */
+  function openScratch() {
+    setLocalSessions((prev) =>
+      prev.some((s) => s.session_id === SCRATCH_ID) ? prev : [blankScratch(), ...prev],
+    );
+    setOverrides((prev) => (prev[SCRATCH_ID] ? prev : { ...prev, [SCRATCH_ID]: blankScratch() }));
+    setSelectedId(SCRATCH_ID);
+    navigate(`/voice/${encodeURIComponent(SCRATCH_ID)}`);
   }
 
   return (
@@ -256,7 +315,10 @@ export function VoicePage() {
       <VoiceSidebar
         sessions={sessions}
         activeId={currentId}
-        onSelect={(id) => setSelectedId(id)}
+        onSelect={(id) => {
+          setSelectedId(id);
+          navigate(`/voice/${encodeURIComponent(id)}`);
+        }}
       />
 
       <div className="page-pad flex min-h-0 min-w-0 flex-1 flex-col gap-4">
@@ -303,10 +365,10 @@ export function VoicePage() {
             </button>
             <button
               type="button"
-              className="text-body2-default text-accent rounded-small px-4 py-2 hover:bg-brand-green-soft"
-              onClick={startNextLog}
+              className="text-body2-default text-accent rounded-small border border-core px-4 py-2 hover:bg-brand-green-soft"
+              onClick={openScratch}
             >
-              Next log →
+              + Blank session
             </button>
 
             <div className="flex w-full items-center gap-3 border-t border-core pt-3">

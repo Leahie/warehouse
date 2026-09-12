@@ -57,6 +57,8 @@ class MatchResult:
     unit: str | None
     supplier: str | None
     lot_code: str | None
+    quality: str | None
+    temperature: dict[str, Any] | None
     quantity_expected: Any
     quantity_received: Any
     po_vs_bol: str
@@ -79,6 +81,8 @@ class MatchResult:
             "unit": self.unit,
             "supplier": self.supplier,
             "lot_code": self.lot_code,
+            "quality": self.quality,
+            "temperature": self.temperature,
             "quantity_expected": self.quantity_expected,
             "quantity_received": self.quantity_received,
             "po_vs_bol": self.po_vs_bol,
@@ -93,9 +97,22 @@ class MatchResult:
         }
 
 
+# Fallback holding range, used only when the warehouse has not set its own.
+# Cold chain is per-commodity and per-site, so the real limits come from
+# warehouse settings; this is what a fresh site starts with.
+DEFAULT_COLD_CHAIN_F = (33.0, 41.0)
+
+
+def _to_fahrenheit(value: float, unit: str | None) -> float | None:
+    if value is None or not unit:
+        return None
+    return value if unit.upper() == "F" else value * 9 / 5 + 32
+
+
 def match_receipt(
     papers: dict[str, dict[str, Any] | None],
     parsed: dict[str, Any] | None,
+    temp_limits_f: tuple[float, float] | None = None,
 ) -> MatchResult:
     po = papers.get("purchase_order")
     bol = papers.get("bill_of_lading")
@@ -160,9 +177,34 @@ def match_receipt(
     flag_reason = None
     unit = parsed.get("unit") or unit_po or "units"
 
+    limits = temp_limits_f or DEFAULT_COLD_CHAIN_F
+    temp = parsed.get("temperature") or {}
+    temp_f = _to_fahrenheit(temp.get("value"), temp.get("unit"))
+    quality = parsed.get("quality")
+    lot_mismatch = bool(lot_slip and lot_voice and _norm(lot_slip) != _norm(lot_voice))
+
     if office_broken:
         status = "flagged"
         flag_reason = "purchase order and bill of lading disagree"
+    elif quality == "bad":
+        # The worker is looking at the pallet; that beats any document.
+        status = "flagged"
+        flag_reason = "worker reported the goods as damaged or spoiled"
+    elif temp_f is not None and not (limits[0] <= temp_f <= limits[1]):
+        status = "flagged"
+        flag_reason = (
+            f"temperature {temp.get('value')}{temp.get('unit')} is outside this "
+            f"warehouse's {limits[0]}-{limits[1]}F holding range"
+            + (f" for {item}" if item else "")
+        )
+    elif lot_mismatch:
+        # Never silently adopt the slip's lot code: traceability depends on it.
+        status = "pending_clarification"
+        kind = "lot_code"
+        question = (
+            f"You said lot {lot_voice}, the packing slip says {lot_slip}. "
+            "Which lot is on the pallet?"
+        )
     elif misread_slip:
         status = "pending_clarification"
         kind = "quantity"
@@ -188,6 +230,8 @@ def match_receipt(
         slip_id=(slip or {}).get("doc_id"),
         item=item or item_po,
         sku=sku,
+        quality=quality,
+        temperature=(temp or None) if temp.get("value") is not None else None,
         unit=parsed.get("unit") or unit_po,
         supplier=supplier,
         lot_code=lot_voice or lot_slip,
