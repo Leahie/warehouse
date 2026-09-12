@@ -241,6 +241,24 @@ def _merge_pending(store: Store, worker_id: str | None, parsed: dict) -> dict:
     return merged
 
 
+def _already_text(order: dict) -> str:
+    """Tell the worker this line is done, and what it was recorded as."""
+    when = order.get("time_process_finished") or order.get("updated_at")
+    when_txt = f" at {when:%H:%M}" if hasattr(when, "strftime") else ""
+    state = order.get("status")
+    tail = (
+        f" It is flagged: {order.get('flag_reason')}."
+        if state == "flagged"
+        else " It is committed."
+    )
+    return (
+        f"{order.get('item', 'That line')} on {order.get('po_id')} is already checked in"
+        f"{when_txt} at {order.get('quantity_received')} "
+        f"{order.get('unit') or 'units'}, lot {order.get('lot_code')}.{tail}"
+        " Say correct it if this pallet is different."
+    )
+
+
 def _offer_text(parsed: dict, candidates: list[dict]) -> str:
     """Read the shortlist back with something the worker can actually pick on."""
     heard = [
@@ -384,6 +402,18 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             "event_id": doc["event_id"], "order": None, "mode": "unmatched",
             "reply": _reply_text(store, "unmatched", None, parsed),
         })
+    # Every PO/BOL on file is a receipt the warehouse expects. Once one has been
+    # checked in, reading the pallet again should say so rather than quietly
+    # overwrite the record a supervisor may already have acted on.
+    already = store.existing_receipt(po_id, parsed.get("item"))
+    if already and already.get("status") in store.SETTLED_STATUSES:
+        return _finish(store, doc, {
+            "event_id": doc["event_id"],
+            "order": already,
+            "mode": "already_received",
+            "reply": _already_text(already),
+        })
+
     papers = store.papers_for_po(po_id)
     result = match_receipt(papers, parsed, store.temperature_limits(parsed.get("item")))
     order = store.apply_match(

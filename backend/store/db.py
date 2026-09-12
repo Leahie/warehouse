@@ -262,6 +262,21 @@ class Store:
         })
         return {k: v for k, v in doc.items() if k != "_id"}
 
+    # A receipt that has been settled -- committed, or flagged and dealt with --
+    # should not be silently written over when someone reads the pallet again.
+    SETTLED_STATUSES = ("committed", "flagged")
+
+    def existing_receipt(self, po_id: str | None, item: str | None) -> dict[str, Any] | None:
+        """An order already checked in against this PO line, if there is one."""
+        if not po_id:
+            return None
+        query: dict[str, Any] = {"po_id": po_id}
+        if item:
+            found = self.db.orders.find_one({**query, "item": item}, {"_id": 0})
+            if found:
+                return found
+        return self.db.orders.find_one(query, {"_id": 0})
+
     def find_candidates(self, parsed: dict[str, Any] | None) -> list[dict[str, Any]]:
         """Purchase orders the worker might have meant, best first.
 

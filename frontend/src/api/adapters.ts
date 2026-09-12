@@ -240,11 +240,24 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
         orders.find((o) => o.order_id === fromEvents)?.order_id ??
         null;
       const isOrder = resolvedOrderId !== null;
+      // A conversation is only "logged" once the receipt it produced is
+      // settled. Until then it is still in progress, however many turns it has
+      // taken -- and a thread with no order attached is never finished, because
+      // every conversation is supposed to end at a checked-in order.
+      const settledOrder = orders.find(
+        (o) =>
+          o.order_id === resolvedOrderId &&
+          (o.status === "committed" || o.status === "flagged"),
+      );
+      const stage: VoiceStage = settledOrder
+        ? "done"
+        : STAGE_BY_KIND[last.kind] ?? "parsing";
+
       return {
         // The browser already sends ids in VS- form; prefixing again would make
         // a second, unrelated-looking conversation out of the same thread.
         session_id: key.startsWith("VS-") ? key : `VS-${key}`,
-        stage: STAGE_BY_KIND[last.kind] ?? "parsing",
+        stage,
         messages,
         summary: messages.length ? messages[messages.length - 1].text : null,
         is_alert: isOrder
