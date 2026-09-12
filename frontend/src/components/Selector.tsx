@@ -172,7 +172,13 @@ export function Selector({
         ref={menuRef}
         role="listbox"
         className="animate-dropdown border-core fixed z-50 max-h-56 overflow-y-auto rounded-default border bg-core-surface py-1 shadow-card"
-        style={{ top: menuBox.top, left: menuBox.left, width: menuBox.width }}
+        style={{
+          top: menuBox.top,
+          width: editable ? menuBox.width : Math.max(menuBox.width, 220),
+          left: editable
+            ? menuBox.left
+            : Math.max(8, menuBox.left + menuBox.width - Math.max(menuBox.width, 220)),
+        }}
       >
         {filtered.length === 0 ? (
           <div className="text-body3-default text-tertiary px-3 py-2">No matching options</div>
