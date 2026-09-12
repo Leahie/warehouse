@@ -177,6 +177,13 @@ def crude_parse(utterance: str) -> dict:
             re.I,
         )
 
+    # "kale, lot K3302" comes back as "K-Lot K-3302", and the item pattern then
+    # reads the item as "K". A commodity name is never one or two letters, so
+    # treat those as not heard and let the lot code identify the receipt.
+    def clean_item(value: str | None) -> str | None:
+        out = (value or "").strip().strip(".,;:").lower()
+        return out if len(out) >= 3 else None
+
     def clean(value: str | None) -> str | None:
         if not value:
             return None
@@ -190,7 +197,7 @@ def crude_parse(utterance: str) -> dict:
 
     return {
         "intent": "receive",
-        "item": (clean(item.group(1)).lower() if item and clean(item.group(1)) else None),
+        "item": clean_item(item.group(1)) if item else None,
         "quantity": int(qty.group(1)) if qty else None,
         "unit": (qty.group(2).lower() if qty else None),
         "lot_code": lot_code,
@@ -224,6 +231,12 @@ def _merge_pending(store: Store, worker_id: str | None, parsed: dict) -> dict:
     away the half of the identification the worker already gave.
     """
     if not worker_id:
+        return parsed
+    # A lot code or PO number identifies the receipt outright. Carrying anything
+    # forward then can only contradict it -- an inherited item from the previous
+    # pallet outvoted a lot code that was heard correctly, and the receipt
+    # resolved to the wrong order entirely.
+    if parsed.get("lot_code") or parsed.get("po_id"):
         return parsed
     merged = dict(parsed)
     for prior in store.pending_context(worker_id):
