@@ -36,6 +36,7 @@ const alerts = alertsData as AlertCard[];
 export function VoicePage() {
   const [searchParams] = useSearchParams();
   const { sessionId: routeSessionId } = useParams();
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const navigate = useNavigate();
   // Three layers, kept apart so a 4-second poll cannot wipe local work:
   //   liveSessions  derived from the API, replaced wholesale on every poll
@@ -156,6 +157,7 @@ export function VoicePage() {
       if (match) {
         appliedDeepLink.current = key;
         setSelectedId(match.session_id);
+        if (searchParams.get("focus")) setFocusedId(match.session_id);
         navigate(`/voice/${encodeURIComponent(match.session_id)}`, { replace: true });
         return;
       }
@@ -308,6 +310,7 @@ export function VoicePage() {
 
   /** Open an empty conversation that is not attached to any order on file. */
   function openScratch() {
+    setFocusedId(null);
     const blank = blankScratch();
     setLocalSessions((prev) => [blank, ...prev]);
     setOverrides((prev) => ({ ...prev, [blank.session_id]: blank }));
@@ -320,6 +323,9 @@ export function VoicePage() {
       <VoiceSidebar
         sessions={sessions}
         activeId={currentId}
+        onNewSession={openScratch}
+        focusedId={focusedId}
+        onClearFocus={() => setFocusedId(null)}
         onSelect={(id) => {
           setSelectedId(id);
           navigate(`/voice/${encodeURIComponent(id)}`);
@@ -367,13 +373,6 @@ export function VoicePage() {
               onClick={playDemoStep}
             >
               Play demo step
-            </button>
-            <button
-              type="button"
-              className="text-body2-default text-accent rounded-small border border-core px-4 py-2 hover:bg-brand-green-soft"
-              onClick={openScratch}
-            >
-              + Blank session
             </button>
 
             <div className="flex w-full items-center gap-3 border-t border-core pt-3">

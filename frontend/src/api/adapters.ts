@@ -289,6 +289,11 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
         created_at: ordered[0].t,
       };
     })
+    // Every conversation is supposed to end at a checked-in order. Threads that
+    // never matched one are stray audio -- test recordings, half sentences -- and
+    // only clutter the log. A conversation in progress in the browser lives in
+    // local state, so nothing live is lost here.
+    .filter((session) => !!session.order_id)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 

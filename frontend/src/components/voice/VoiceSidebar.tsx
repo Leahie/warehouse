@@ -4,17 +4,51 @@ type Props = {
   sessions: VoiceSession[];
   activeId: string | null;
   onSelect: (sessionId: string) => void;
+  onNewSession: () => void;
+  /** Arrived from an alert: show only that conversation until cleared. */
+  focusedId?: string | null;
+  onClearFocus?: () => void;
 };
 
-export function VoiceSidebar({ sessions, activeId, onSelect }: Props) {
-  const activeUnfinished = sessions.filter((s) => s.stage !== "done");
-  const archived = sessions.filter((s) => s.stage === "done");
+export function VoiceSidebar({
+  sessions,
+  activeId,
+  onSelect,
+  onNewSession,
+  focusedId,
+  onClearFocus,
+}: Props) {
+  const visible = focusedId
+    ? sessions.filter((s) => s.session_id === focusedId)
+    : sessions;
+  const activeUnfinished = visible.filter((s) => s.stage !== "done");
+  const archived = visible.filter((s) => s.stage === "done");
 
   return (
     <aside className="border-core flex min-h-0 w-72 shrink-0 flex-col border-r bg-core-surface">
-      <div className="border-core flex items-center justify-between border-b px-4 py-3">
-        <span className="text-h5-default text-primary font-semibold">Voice Logs</span>
-        <span className="text-body3-default text-tertiary">{sessions.length} total</span>
+      <div className="border-core flex flex-col gap-2 border-b px-4 py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-h5-default text-primary font-semibold">Voice Logs</span>
+          <span className="text-body3-default text-tertiary">
+            {focusedId ? "1 shown" : `${sessions.length} total`}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onNewSession}
+          className="text-body2-heavy rounded-small bg-brand-green px-3 py-2 text-on-brand transition-opacity hover:opacity-90"
+        >
+          + New session
+        </button>
+        {focusedId && (
+          <button
+            type="button"
+            onClick={onClearFocus}
+            className="text-body3-default text-accent rounded-small px-2 py-1 text-left hover:bg-brand-green-soft"
+          >
+            ← Show all conversations
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
