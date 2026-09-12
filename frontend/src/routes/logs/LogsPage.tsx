@@ -106,7 +106,7 @@ export function LogsPage() {
   const availableToAdd = allManufacturerKeys.filter((m) => !names.includes(m));
 
   return (
-    <section className="page-pad flex min-h-0 flex-1 flex-col gap-5">
+    <section className="page-pad flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-h1-default text-primary m-0">Logs</h1>

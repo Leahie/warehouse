@@ -54,7 +54,10 @@
   html,
   body,
   #root {
-    min-height: 100%;
+    /* A definite height, not just a minimum. Descendants with overflow-y-auto
+       can only scroll if some ancestor has a height to scroll within; with
+       min-height alone the shell grows with its content and nothing scrolls. */
+    height: 100%;
   }
 
   body {
@@ -250,7 +253,8 @@
 
 /* App shell helpers */
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--color-core-root);
