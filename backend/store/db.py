@@ -399,6 +399,10 @@ class Store:
                     "clarification_id": clq_id,
                     "order_id": order_id,
                     "question": data["clarification_question"],
+                "question_es": data.get("clarification_question_es"),
+                    # Kept alongside so the agent can read the question back in
+                    # whichever language the worker is speaking.
+                    "question_es": data.get("clarification_question_es"),
                     "kind": data.get("clarification_kind"),
                     "status": "open",
                     "asked_at": now,
@@ -411,6 +415,7 @@ class Store:
             self.db.orders.update_one({"order_id": order_id}, {"$set": {"clarification_ids": list(dict.fromkeys(clarification_ids))}})
             self.emit("clarification_asked", "voice", actor, "clarifications", clq_id, {
                 "question": data["clarification_question"],
+                "question_es": data.get("clarification_question_es"),
                 "order_id": order_id,
             })
         if status == "flagged":

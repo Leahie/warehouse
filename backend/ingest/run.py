@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from match.matcher import match_receipt
-from match.resolve import decide
+from match.resolve import decide, spoken_item, to_catalogue_item
 from store.db import Store
 
 INBOX = ROOT / "data" / "inbox"
@@ -30,17 +30,18 @@ def _read(path: Path) -> dict:
 # matched "confirme"/"confirmed", so a worker saying "I can confirm" was ignored.
 _CONFIRM_RE = re.compile(
     r"\b("
-    r"yes|yeah|yep|yup|yup|uh[- ]?huh|mm[- ]?hm"
+    r"yes|yeah|yep|yup|uh[- ]?huh|mm[- ]?hm|s[ií]|claro|exacto|as[ií] es|correcto"
     r"|correct|right|true|accurate"
     r"|that'?s (?:right|correct|it)|thats (?:right|correct|it)"
     r"|confirm(?:s|ed|ing)?|affirmative"
-    r"|sure|ok|okay|go ahead|sounds right|looks right"
+    r"|sure|ok|okay|go ahead|sounds right|looks right|est[aá] bien|de acuerdo|afirmativo"
     r")\b",
     re.I,
 )
 _CORRECT_RE = re.compile(
     r"\b("
     r"actually|no[, ]+it(?:'?s| is)|no[, ]+its|not quite|nope"
+    r"|en realidad|no[, ]+son|no[, ]+es|m[aá]s bien|corrige|corregir|mejor dicho"
     r"|make it|should be|change it to|correct it to|i meant|scratch that"
     r"|it'?s really|it is really"
     r")\b",
@@ -113,6 +114,7 @@ def parse_temperature(text: str) -> dict:
 # What a worker actually says about a bad pallet.
 _BAD_QUALITY = re.compile(
     r"\b(bad|spoiled|spoilt|rotten|rotting|mold|mould|mouldy|moldy|wilted|wilting|"
+    r"da[nñ]ad[oa]s?|podrid[oa]s?|rot[oa]s?|mal[oa]s?|mojad[oa]s?|caliente|aplastad[oa]s?|"
     r"damaged|crushed|bruised|leaking|leaked|torn|ripped|smells?|stinks?|"
     r"off|warm|thawed|melted|soggy|slimy|unusable|reject(?:ed)?)\b",
     re.I,
@@ -120,7 +122,9 @@ _BAD_QUALITY = re.compile(
 # "fresh" is excluded on purpose: it appears in supplier names ("Fresh Farms")
 # far more often than as a quality report.
 _GOOD_QUALITY = re.compile(
-    r"\b(looks good|looks fine|all good|no damage|undamaged|intact|in good shape)\b", re.I
+    r"\b(looks good|looks fine|all good|no damage|undamaged|intact|in good shape"
+    r"|se ve bien|est[aá] bien|sin da[nñ]o|sin da[nñ]os|en buen estado)\b",
+    re.I,
 )
 
 
@@ -140,19 +144,29 @@ def crude_parse(utterance: str) -> dict:
     heard stays None and the resolver scores on whatever remains.
     """
     text = utterance or ""
-    qty = re.search(r"(\d+)\s+(cases|case|pallets|pallet|units|unit|boxes|box)", text, re.I)
+    qty = re.search(
+        r"(\d+)\s+("
+        r"cases|case|pallets|pallet|units|unit|boxes|box"
+        r"|cajas|caja|tarimas|tarima|unidades|unidad|caj(?:as)?"
+        r")",
+        text,
+        re.I,
+    )
     # "lot C5217-15", "lot number C5217 15", "lot: C-5217"
     # A lot code is one token, or two when spoken as "C5217 15". Stop before a
     # following clause, or the match swallows "... from Pacific Pack 5".
     lot = re.search(
-        r"(?:lot|law|lock|lodge|slot|lough|loch|log|lots|lodd)\s*(?:code|number|no\.?|#)?[:,\s]\s*"
+        r"(?:lot|law|lock|lodge|slot|lough|loch|log|lots|lodd|lote|lotte|note)\s*(?:code|number|no\.?|#|c[oó]digo|n[uú]mero)?[:,\s]\s*"
         r"([A-Za-z0-9][A-Za-z0-9-]*(?:\s+(?!from\b|at\b|in\b|on\b|for\b|of\b)\d[A-Za-z0-9-]*)?)",
         text,
         re.I,
     )
     # "from Pacific Pack 5" -- but also a bare trailing name, as in
     # "42 cases of cauliflower, lot C5217-15, Pacific Pac 5."
-    supplier = re.search(r"\bfrom\s+([A-Za-z0-9][A-Za-z0-9 .'&-]+)", text, re.I)
+    # "from Fresh Farms" / "de Fresh Farms" / "del proveedor Fresh Farms"
+    supplier = re.search(
+        r"\b(?:from|de|del|de\s+la|proveedor)\s+([A-Za-z0-9][A-Za-z0-9 .'&-]+)", text, re.I
+    )
     if not supplier:
         # A trailing proper noun is often the supplier ("..., Pacific Pack 5."),
         # but "Yo, I got some broccoli." fits that shape too. Require something
@@ -165,14 +179,21 @@ def crude_parse(utterance: str) -> dict:
     po = re.search(r"\b(?:p\.?\s?o\.?|purchase\s+order)[\s#:-]*(\d{3,6})\b", text, re.I)
 
     # "receiving 42 cases of cauliflower" and the bare "42 cases of cauliflower"
-    item = re.search(r"\d+\s+(?:cases?|pallets?|units?|boxes?|box)\s+of\s+([A-Za-z]+)", text, re.I)
+    item = re.search(
+        r"\d+\s+(?:cases?|pallets?|units?|boxes?|box|cajas?|tarimas?|unidades?)\s+"
+        r"(?:of|de)\s+([A-Za-z\u00c0-\u017f]+)",
+        text,
+        re.I,
+    )
     if not item:
         item = re.search(
-            r"(?:receiving|received|got|unloading|here'?s|this is)\s+"
+            r"(?:receiving|received|got|unloading|here'?s|this is"
+            r"|recibiendo|recib[ií]|tengo|traigo|descargando|aqu[ií] hay|son)\s+"
             # "I got some broccoli" -- skip determiners and filler, or the item
             # comes back as "some".
-            r"(?:(?:some|a|an|the|my|this|that|these|those|like|just|uh|um)\s+)*"
-            r"(?:\d+\s+\w+\s+of\s+)?([A-Za-z]+)",
+            r"(?:(?:some|a|an|the|my|this|that|these|those|like|just|uh|um"
+            r"|un|una|unos|unas|el|la|los|las|este|esta|esto)\s+)*"
+            r"(?:\d+\s+\w+\s+(?:of|de)\s+)?([A-Za-z\u00c0-\u017f]+)",
             text,
             re.I,
         )
@@ -182,7 +203,11 @@ def crude_parse(utterance: str) -> dict:
     # treat those as not heard and let the lot code identify the receipt.
     def clean_item(value: str | None) -> str | None:
         out = (value or "").strip().strip(".,;:").lower()
-        return out if len(out) >= 3 else None
+        if len(out) < 3:
+            return None
+        # Documents are in English; a Spanish commodity maps onto them here so
+        # the matcher never has to know which language was spoken.
+        return to_catalogue_item(out)
 
     def clean(value: str | None) -> str | None:
         if not value:
@@ -264,6 +289,33 @@ def _merge_pending(store: Store, worker_id: str | None, parsed: dict) -> dict:
     return merged
 
 
+def _reply_for(store: Store, doc: dict, mode: str, order: dict | None, parsed: dict) -> str:
+    """Answer in the language the worker spoke."""
+    builder = _reply_text_es if _lang_of(doc) == "es" else _reply_text
+    return builder(store, mode, order, parsed)
+
+
+def _lang_of(doc: dict, parsed: dict | None = None) -> str:
+    """Which language to answer in. Whisper's detection, else what we parsed."""
+    detected = (doc.get("language") or "").lower()[:2]
+    return "es" if detected == "es" else "en"
+
+
+def _already_text_es(order: dict) -> str:
+    state = order.get("status")
+    tail = (
+        f" Est\u00e1 marcado: {order.get('flag_reason')}."
+        if state == "flagged"
+        else " Est\u00e1 confirmado."
+    )
+    return (
+        f"{spoken_item(order.get('item'), 'es') or 'Esa l\u00ednea'} de {order.get('po_id')} ya fue registrado: "
+        f"{order.get('quantity_received')} {order.get('unit') or 'unidades'}, "
+        f"lote {order.get('lot_code')}.{tail}"
+        " Diga corregir si esta tarima es distinta."
+    )
+
+
 def _already_text(order: dict) -> str:
     """Tell the worker this line is done, and what it was recorded as."""
     when = order.get("time_process_finished") or order.get("updated_at")
@@ -279,6 +331,26 @@ def _already_text(order: dict) -> str:
         f"{when_txt} at {order.get('quantity_received')} "
         f"{order.get('unit') or 'units'}, lot {order.get('lot_code')}.{tail}"
         " Say correct it if this pallet is different."
+    )
+
+
+def _offer_text_es(parsed: dict, candidates: list[dict]) -> str:
+    heard = [
+        f"{parsed['quantity']} {parsed.get('unit') or 'unidades'}" if parsed.get("quantity") else None,
+        parsed.get("item"),
+        f"lote {parsed['lot_code']}" if parsed.get("lot_code") else None,
+        f"de {parsed['supplier']}" if parsed.get("supplier") else None,
+    ]
+    heard_txt = ", ".join(h for h in heard if h) or "eso"
+    options = "; ".join(
+        f"{c['po_id']}"
+        + (f" de {c['supplier']}" if c.get("supplier") else "")
+        + (f", lote {c['lot_codes'][0]}" if c.get("lot_codes") else "")
+        for c in candidates[:3]
+    )
+    return (
+        f"Escuch\u00e9 {heard_txt}, pero no s\u00e9 a cu\u00e1l entrega se refiere. "
+        f"Tengo {options}. \u00bfCu\u00e1l es? Con el n\u00famero de lote o de orden basta."
     )
 
 
@@ -319,6 +391,49 @@ def _offer_text(parsed: dict, candidates: list[dict]) -> str:
         else f"I heard {heard_txt}, but I could not tell which delivery you mean"
     )
     return f"{lead}. I have {options}. Which one? A lot code or PO number settles it."
+
+
+def _reply_text_es(store: Store, mode: str, order: dict | None, parsed: dict) -> str:
+    if mode == "unmatched":
+        return (
+            "No pude encontrar esa entrega. "
+            "Repita la cantidad, el producto, el lote y el proveedor, por favor."
+        )
+    if mode == "clarification_answer":
+        if not order:
+            return "Perd\u00ed el hilo de esa pregunta. Repita la l\u00ednea, por favor."
+        if order.get("status") == "flagged":
+            return (
+                f"Entendido. Marqu\u00e9 {spoken_item(order.get('item'), 'es')} "
+                f"lote {order.get('lot_code')} "
+                f"como faltante: llegaron {order.get('quantity_received')} de "
+                f"{order.get('quantity_expected')} esperadas. Hay una alerta para el supervisor."
+            )
+        return (
+            f"Corregido. {spoken_item(order.get('item'), 'es')} lote {order.get('lot_code')} "
+            f"queda confirmado "
+            f"en {order.get('quantity_received')}."
+        )
+    if order:
+        open_here = [
+            c for c in store.list_open_clarifications()
+            if c.get("order_id") == order.get("order_id")
+        ]
+        if open_here:
+            return open_here[0].get("question_es") or open_here[0].get("question") or ""
+        if order.get("status") == "flagged":
+            return (
+                f"Registr\u00e9 {order.get('quantity_received')} "
+                f"{spoken_item(order.get('item'), 'es')}, "
+                f"lote {order.get('lot_code')}, y lo marqu\u00e9: {order.get('flag_reason')}. "
+                "Hay una alerta para el supervisor."
+            )
+        return (
+            f"Registr\u00e9 {order.get('quantity_received')} "
+            f"{spoken_item(order.get('item'), 'es')}, "
+            f"lote {order.get('lot_code')}. Coincide con los documentos. Confirmado."
+        )
+    return "Registrado."
 
 
 def _reply_text(store: Store, mode: str, order: dict | None, parsed: dict) -> str:
@@ -405,7 +520,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         order = store.answer_clarification(reply_to, doc, actor=doc.get("actor") or "ingest")
         return _finish(store, doc, {
             "event_id": doc["event_id"], "order": order, "mode": "clarification_answer",
-            "reply": _reply_text(store, "clarification_answer", order, parsed),
+            "reply": _reply_for(store, doc, "clarification_answer", order, parsed),
         })
     parsed = _merge_pending(store, doc.get("worker_id"), parsed)
     if not parsed.get("po_id") and doc.get("po_id"):
@@ -419,11 +534,11 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             return _finish(store, doc, {
                 "event_id": doc["event_id"], "order": None, "mode": "ambiguous",
                 "candidates": offer,
-                "reply": _offer_text(parsed, offer),
+                "reply": (_offer_text_es if _lang_of(doc) == "es" else _offer_text)(parsed, offer),
             })
         return _finish(store, doc, {
             "event_id": doc["event_id"], "order": None, "mode": "unmatched",
-            "reply": _reply_text(store, "unmatched", None, parsed),
+            "reply": _reply_for(store, doc, "unmatched", None, parsed),
         })
     # Every PO/BOL on file is a receipt the warehouse expects. Once one has been
     # checked in, reading the pallet again should say so rather than quietly
@@ -434,7 +549,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             "event_id": doc["event_id"],
             "order": already,
             "mode": "already_received",
-            "reply": _already_text(already),
+            "reply": (_already_text_es if _lang_of(doc) == "es" else _already_text)(already),
         })
 
     papers = store.papers_for_po(po_id)
@@ -454,7 +569,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         doc["session_id"] = order_session
     return _finish(store, doc, {
         "event_id": doc["event_id"], "order": order, "mode": "receive",
-        "reply": _reply_text(store, "receive", order, parsed),
+        "reply": _reply_for(store, doc, "receive", order, parsed),
     })
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from match.resolve import norm_code
+from match.resolve import norm_code, spoken_item
 
 
 def _norm(value: Any) -> Any:
@@ -71,6 +71,7 @@ class MatchResult:
     suggested_status: str = "committed"
     clarification_kind: str | None = None
     clarification_question: str | None = None
+    clarification_question_es: str | None = None
     flag_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -95,6 +96,7 @@ class MatchResult:
             "suggested_status": self.suggested_status,
             "clarification_kind": self.clarification_kind,
             "clarification_question": self.clarification_question,
+            "clarification_question_es": self.clarification_question_es,
             "flag_reason": self.flag_reason,
         }
 
@@ -174,6 +176,7 @@ def match_receipt(
     misread_slip = qty_slip is not None and qty_pair_slip_voice == "mismatch"
 
     question = None
+    question_es = None
     kind = None
     status = "committed"
     flag_reason = None
@@ -216,12 +219,20 @@ def match_receipt(
             f"You said lot {lot_voice}, the packing slip says {lot_slip}. "
             "Which lot is on the pallet?"
         )
+        question_es = (
+            f"Usted dijo lote {lot_voice}, pero la lista de empaque dice {lot_slip}. "
+            "\u00bfCu\u00e1l lote est\u00e1 en la tarima?"
+        )
     elif misread_slip:
         status = "pending_clarification"
         kind = "quantity"
         question = (
             f"You said {qty_voice} {unit}, the packing slip shows {qty_slip} — "
             "which number is on the slip?"
+        )
+        question_es = (
+            f"Usted dijo {qty_voice} {unit}, la lista de empaque muestra {qty_slip}. "
+            "\u00bfQu\u00e9 n\u00famero aparece en la lista?"
         )
     elif dock_vs_office:
         status = "pending_clarification"
@@ -230,6 +241,12 @@ def match_receipt(
             f"Packing slip shows {qty_dock} {unit} of {item or item_po or 'this item'}; "
             f"PO and bill of lading say {qty_po}. Can you confirm the count?"
         )
+        question_es = (
+            f"La lista de empaque muestra {qty_dock} de "
+            f"{spoken_item(item or item_po, 'es') or 'este producto'}; "
+            f"la orden y el conocimiento de embarque dicen {qty_po}. "
+            "\u00bfPuede confirmar la cantidad?"
+        )
     elif temp.get("value") is not None and not temp.get("unit"):
         # Only ask when a reading was actually given. The parsed temperature is
         # always a dict, so testing it for truthiness asked every worker to
@@ -237,6 +254,7 @@ def match_receipt(
         status = "pending_clarification"
         kind = "temperature_unit"
         question = "Was this temperature in Fahrenheit or Celsius?"
+        question_es = "\u00bfEsa temperatura era en Fahrenheit o Celsius?"
 
     return MatchResult(
         po_id=(po or {}).get("po_id") or (po or {}).get("doc_id"),
@@ -259,5 +277,6 @@ def match_receipt(
         suggested_status=status,
         clarification_kind=kind,
         clarification_question=question,
+        clarification_question_es=question_es,
         flag_reason=flag_reason,
     )
