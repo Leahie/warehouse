@@ -266,10 +266,17 @@ export function useAlerts(fallback: AlertCard[]): InfiniteLive<AlertCard> {
     fallback,
     idOf: (row) => row.alert_id,
     load: async (offset, limit, signal) => {
-      const page = await fetchAlertsPage(offset, limit, signal);
+      // Voice events come along so each alert can quote the exchange that
+      // produced it, rather than reading as a standalone paperwork record.
+      const [page, events] = await Promise.all([
+        fetchAlertsPage(offset, limit, signal),
+        fetchEvents("voice", signal).catch(() => [] as ApiEvent[]),
+      ]);
       return {
         ...page,
-        items: page.items.map((alert: ApiAlert) => toAlertCard(alert, page.orders)),
+        items: page.items.map((alert: ApiAlert) =>
+          toAlertCard(alert, page.orders, events),
+        ),
       };
     },
   });

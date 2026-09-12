@@ -160,34 +160,38 @@ export function VoicePage() {
         return;
       }
 
-      // If the alert exists in alerts.json but wasn't in seed sessions, dynamically create it
+      // An alert is the outcome of a conversation, so open that conversation --
+      // the worker saying what they counted and the agent questioning it. Only
+      // when no exchange was ever recorded do we fall back to a placeholder, and
+      // it says so rather than presenting itself as the conversation.
       const alert = alerts.find((a) => a.order_id === orderParam);
       if (alert) {
-        const created: VoiceSession = {
+        const placeholder: VoiceSession = {
           session_id: `VS-ALERT-${alert.alert_id}`,
           stage: "done",
           is_alert: true,
           order_id: alert.order_id,
           created_at: alert.created_at,
-          summary: `Alert (${alert.reason}): ${alert.lot_code} · ${alert.supplier}`,
+          summary: `No recorded conversation for ${alert.order_id}`,
           messages: [
             {
-              id: `m-init-${Date.now()}`,
+              id: `m-note-${alert.alert_id}`,
               role: "system",
-              text: "Logging data…",
-              at: alert.created_at,
-            },
-            {
-              id: `m-agent-${Date.now()}`,
-              role: "agent",
-              text: `Alert Record [${alert.alert_id}]: ${alert.reason}. ${alert.ai_summary}`,
+              text:
+                `No voice exchange was recorded for ${alert.order_id}. ` +
+                `This alert was raised from the paperwork: ${alert.reason}.`,
               at: alert.created_at,
             },
           ],
         };
         appliedDeepLink.current = key;
-        setLocalSessions((prev) => [created, ...prev]);
-        setSelectedId(created.session_id);
+        setLocalSessions((prev) =>
+          prev.some((s) => s.session_id === placeholder.session_id)
+            ? prev
+            : [placeholder, ...prev],
+        );
+        setSelectedId(placeholder.session_id);
+        navigate(`/voice/${encodeURIComponent(placeholder.session_id)}`, { replace: true });
       }
     }
   }, [searchParams, sessions]);

@@ -87,8 +87,17 @@ function itemFromSummary(summary: string | null | undefined): string | null {
   return match ? match[1].trim() : null;
 }
 
-/** Alerts carry only a reason; lot code, supplier, and item are joined from the order when present. */
-export function toAlertCard(a: ApiAlert, orders: ApiOrder[]): AlertCard {
+/**
+ * Alerts carry only a reason; lot code, supplier and item are joined from the
+ * order. The summary also quotes the worker, because an alert is the outcome of
+ * an exchange at the dock -- someone saying they counted 14 against a PO of 20 --
+ * not a record that stands on its own.
+ */
+export function toAlertCard(
+  a: ApiAlert,
+  orders: ApiOrder[],
+  events: ApiEvent[] = [],
+): AlertCard {
   const order = orders.find((o) => o.order_id === a.order_id);
   const mismatch = order?.match?.mismatches?.find((m) => m.field === "quantity");
   const detail = mismatch
@@ -98,9 +107,22 @@ export function toAlertCard(a: ApiAlert, orders: ApiOrder[]): AlertCard {
     order?.item || a.item || itemFromSummary(a.ai_summary) || "Unknown item";
   const supplier = order?.supplier || a.supplier || "unknown";
   const lot_code = order?.lot_code || a.lot_code || "";
-  const ai_summary =
+  // The worker's own words, from the exchange that produced this alert.
+  const spoken = events
+    .filter((e) => e.kind === "voice_received")
+    .filter((e) => {
+      const p = (e.payload ?? {}) as Record<string, unknown>;
+      if (p.order_id && p.order_id === a.order_id) return true;
+      return !!order?.lot_code && p.lot_code === order.lot_code;
+    })
+    .sort((x, y) => y.seq - x.seq)[0];
+  const utterance = (spoken?.payload as Record<string, unknown> | undefined)?.utterance;
+  const quote = typeof utterance === "string" ? ` Worker said: "${utterance}".` : "";
+
+  const base =
     a.ai_summary ||
     `${item !== "Unknown item" ? `${item}: ` : ""}${a.reason}.${detail}`.replace(/\.\./g, ".");
+  const ai_summary = `${base}${quote}`;
   return {
     alert_id: a.alert_id,
     order_id: a.order_id,
