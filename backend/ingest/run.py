@@ -23,6 +23,28 @@ def _read(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+# A reply to an open clarification is short and has no PO in it, so the receive
+# parser cannot recognise it. Detect the two answers the dock actually gives.
+_CONFIRM_RE = re.compile(
+    r"\b(yes|yeah|yep|yup|correct|that'?s right|thats right|confirmed?|affirmative)\b",
+    re.I,
+)
+_CORRECT_RE = re.compile(
+    r"\b(actually|no it'?s|make it|should be|change it to|i meant|scratch that)\b",
+    re.I,
+)
+
+
+def answer_intent(utterance: str) -> str | None:
+    """confirm_discrepancy / correct_entry / None, from a spoken reply."""
+    text = utterance or ""
+    if _CORRECT_RE.search(text):
+        return "correct_entry"
+    if _CONFIRM_RE.search(text):
+        return "confirm_discrepancy"
+    return None
+
+
 def crude_parse(utterance: str) -> dict:
     text = utterance or ""
     qty = re.search(r"(\d+)\s+(cases|case|pallets|pallet|units|unit)", text, re.I)
@@ -50,6 +72,40 @@ def _mark(path: Path) -> None:
     dest.write_text(path.read_text())
 
 
+def _reply_text(store: Store, mode: str, order: dict | None, parsed: dict) -> str:
+    """What the agent says back to the dock. Spoken by the browser."""
+    if mode == "unmatched":
+        return (
+            "I could not match that to an expected delivery. "
+            "Please repeat the quantity, the item, the lot code and the supplier."
+        )
+    if mode == "clarification_answer":
+        if not order:
+            return "I lost track of that question. Please say the line again."
+        if order.get("status") == "flagged":
+            return (
+                f"Understood. I flagged {order.get('item')} lot {order.get('lot_code')} "
+                f"as a short ship: {order.get('quantity_received')} received against "
+                f"{order.get('quantity_expected')} expected. A supervisor alert is open."
+            )
+        return (
+            f"Corrected. {order.get('item')} lot {order.get('lot_code')} is committed at "
+            f"{order.get('quantity_received')}."
+        )
+    if order:
+        open_here = [
+            c for c in store.list_open_clarifications()
+            if c.get("order_id") == order.get("order_id")
+        ]
+        if open_here:
+            return open_here[0].get("question") or "Can you confirm that count?"
+        return (
+            f"Logged {order.get('quantity_received')} {order.get('item')}, "
+            f"lot {order.get('lot_code')}. That matches the paperwork. Committed."
+        )
+    return "Logged."
+
+
 def ingest_voice_doc(store: Store, doc: dict) -> dict:
     parsed = doc.get("parsed") or crude_parse(doc.get("utterance") or "")
     if doc.get("in_reply_to") and not parsed.get("in_reply_to"):
@@ -59,12 +115,32 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         doc["event_id"] = f"EVT-{uuid.uuid4().hex[:8].upper()}"
     store.insert_voice_event(doc, actor=doc.get("actor") or "ingest")
     reply_to = parsed.get("in_reply_to")
+
+    # A browser mic cannot tell us what it is replying to, so if this utterance
+    # reads as an answer and exactly one clarification is open, treat it as that
+    # answer rather than dropping it as unmatched.
+    if not reply_to:
+        spoken_intent = answer_intent(doc.get("utterance") or "")
+        if spoken_intent:
+            open_clqs = store.list_open_clarifications()
+            if len(open_clqs) == 1:
+                reply_to = open_clqs[0]["clarification_id"]
+                parsed["intent"] = spoken_intent
+                parsed["in_reply_to"] = reply_to
+                doc["parsed"] = parsed
+
     if reply_to:
         order = store.answer_clarification(reply_to, doc, actor=doc.get("actor") or "ingest")
-        return {"event_id": doc["event_id"], "order": order, "mode": "clarification_answer"}
+        return {
+            "event_id": doc["event_id"], "order": order, "mode": "clarification_answer",
+            "reply": _reply_text(store, "clarification_answer", order, parsed),
+        }
     po_id = store.find_po_id(parsed)
     if not po_id:
-        return {"event_id": doc["event_id"], "order": None, "mode": "unmatched"}
+        return {
+            "event_id": doc["event_id"], "order": None, "mode": "unmatched",
+            "reply": _reply_text(store, "unmatched", None, parsed),
+        }
     papers = store.papers_for_po(po_id)
     result = match_receipt(papers, parsed)
     order = store.apply_match(
@@ -73,7 +149,10 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         result=result,
         actor=doc.get("actor") or "ingest",
     )
-    return {"event_id": doc["event_id"], "order": order, "mode": "receive"}
+    return {
+        "event_id": doc["event_id"], "order": order, "mode": "receive",
+        "reply": _reply_text(store, "receive", order, parsed),
+    }
 
 
 def ingest_path(store: Store, path: Path) -> None:

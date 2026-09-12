@@ -8,6 +8,8 @@ import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
 import type { AlertCard } from "@/types/alert";
 import type { VoiceSession } from "@/types/voice";
 import { useVoiceSessions } from "@/api/useLiveData";
+import { useDockMic } from "@/audio/useDockMic";
+import { speechSupported, stopSpeaking } from "@/audio/speak";
 
 const seedSessions = voiceData as VoiceSession[];
 const seedIds = new Set(seedSessions.map((s) => s.session_id));
@@ -56,6 +58,14 @@ export function VoicePage() {
       return [...localOnly, ...liveSessions];
     });
   }, [liveSessions]);
+
+  // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
+  const mic = useDockMic({
+    onTurn: (turn) => {
+      // Jump to the order this turn touched so the transcript is on screen.
+      if (turn.order?.order_id) setSelectedId(`VS-${turn.order.order_id}`);
+    },
+  });
 
   // Sync with query params (?order=... or ?session=...)
   useEffect(() => {
@@ -282,6 +292,50 @@ export function VoicePage() {
             >
               Next log →
             </button>
+
+            <div className="flex w-full items-center gap-3 border-t border-core pt-3">
+              <button
+                type="button"
+                onClick={mic.toggle}
+                disabled={mic.state === "thinking"}
+                className={[
+                  "text-body2-heavy rounded-small px-4 py-2 transition-opacity disabled:opacity-40",
+                  mic.state === "recording"
+                    ? "bg-negative text-on-brand"
+                    : "bg-brand-green text-on-brand",
+                ].join(" ")}
+              >
+                {mic.state === "recording"
+                  ? "■ Stop and send"
+                  : mic.state === "thinking"
+                    ? "Transcribing…"
+                    : "● Talk to the dock"}
+              </button>
+
+              {mic.state === "speaking" && (
+                <button
+                  type="button"
+                  onClick={stopSpeaking}
+                  className="text-body2-default text-accent rounded-small px-3 py-2 hover:bg-brand-green-soft"
+                >
+                  Stop audio
+                </button>
+              )}
+
+              <span className="text-body3-default min-w-0 flex-1 truncate text-secondary">
+                {mic.status ||
+                  (speechSupported()
+                    ? "Press talk, read the packing slip aloud, then stop."
+                    : "This browser cannot speak; replies will show as text only.")}
+              </span>
+            </div>
+
+            {mic.lastTurn?.reply && (
+              <div className="w-full rounded-small bg-core-surface-ii px-3 py-2">
+                <span className="text-body3-heavy text-secondary">Agent: </span>
+                <span className="text-body2-default text-primary">{mic.lastTurn.reply}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
