@@ -694,6 +694,21 @@ class Store:
                     ),
                     "checked_in": bool(order),
                 })
+        def _stamp(value: Any) -> str:
+            if value is None:
+                return ""
+            if hasattr(value, "isoformat"):
+                return value.isoformat()
+            return str(value)
+
+        # Newest receipt day first, then latest process time within that day.
+        rows.sort(
+            key=lambda row: (
+                _stamp(row.get("created_at"))[:10],
+                _stamp(row.get("time_process_finished")),
+            ),
+            reverse=True,
+        )
         return rows
 
     def receiving_progress(self) -> dict[str, Any]:

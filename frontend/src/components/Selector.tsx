@@ -30,6 +30,11 @@ type Props = {
    */
   editable?: boolean;
   leading?: ReactNode;
+  /**
+   * When false, the option list stays in the same dialog as the input so a
+   * parent popover does not treat a click as "outside" and close.
+   */
+  portal?: boolean;
 };
 
 function asOptions(options: Array<string | SelectorOption>): SelectorOption[] {
@@ -49,8 +54,9 @@ export function Selector({
   allowCustom = false,
   editable = true,
   leading,
+  portal = true,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!portal);
   const [query, setQuery] = useState("");
   const [typing, setTyping] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -81,7 +87,7 @@ export function Selector({
   }, [filterText, open]);
 
   useLayoutEffect(() => {
-    if (!open) {
+    if (!open || !portal) {
       setMenuBox(null);
       return;
     }
@@ -98,7 +104,7 @@ export function Selector({
       window.removeEventListener("resize", sync);
       window.removeEventListener("scroll", sync, true);
     };
-  }, [open]);
+  }, [open, portal]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -122,15 +128,15 @@ export function Selector({
     onChange(next);
     setTyping(false);
     setQuery("");
-    setOpen(false);
+    if (portal) setOpen(false);
   }
 
   function clear() {
     onChange("");
     setTyping(false);
     setQuery("");
-    setOpen(false);
-    inputRef.current?.blur();
+    if (portal) setOpen(false);
+    if (portal) inputRef.current?.blur();
   }
 
   function moveActive(delta: number) {
@@ -166,45 +172,57 @@ export function Selector({
     }
   }
 
+  const menuBody =
+    filtered.length === 0 ? (
+      <div className="text-body3-default text-tertiary px-3 py-2">No matching options</div>
+    ) : (
+      filtered.map((option, index) => (
+        <button
+          key={option.value}
+          type="button"
+          role="option"
+          aria-selected={option.value === value}
+          className={[
+            "text-body2-default w-full px-3 py-1.5 text-left transition-colors",
+            option.value === value
+              ? "bg-brand-green-soft text-accent font-semibold"
+              : index === activeIndex
+                ? "bg-core-surface-ii text-primary"
+                : "text-primary hover:bg-core-surface-ii",
+          ].join(" ")}
+          onMouseEnter={() => setActiveIndex(index)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => commit(option.value)}
+        >
+          {option.label}
+        </button>
+      ))
+    );
+
   const menu =
-    open && menuBox ? (
+    open && (portal ? menuBox : true) ? (
       <div
         ref={menuRef}
+        data-selector-menu=""
         role="listbox"
-        className="animate-dropdown border-core fixed z-50 max-h-56 overflow-y-auto rounded-default border bg-core-surface py-1 shadow-card"
-        style={{
-          top: menuBox.top,
-          width: editable ? menuBox.width : Math.max(menuBox.width, 220),
-          left: editable
-            ? menuBox.left
-            : Math.max(8, menuBox.left + menuBox.width - Math.max(menuBox.width, 220)),
-        }}
+        className={
+          portal
+            ? "animate-dropdown border-core fixed z-50 max-h-56 overflow-y-auto rounded-default border bg-core-surface py-1 shadow-card"
+            : "border-core mt-1 max-h-44 overflow-y-auto rounded-default border bg-core-surface-ii/50 py-1"
+        }
+        style={
+          portal && menuBox
+            ? {
+                top: menuBox.top,
+                width: editable ? menuBox.width : Math.max(menuBox.width, 220),
+                left: editable
+                  ? menuBox.left
+                  : Math.max(8, menuBox.left + menuBox.width - Math.max(menuBox.width, 220)),
+              }
+            : undefined
+        }
       >
-        {filtered.length === 0 ? (
-          <div className="text-body3-default text-tertiary px-3 py-2">No matching options</div>
-        ) : (
-          filtered.map((option, index) => (
-            <button
-              key={option.value}
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className={[
-                "text-body2-default w-full px-3 py-1.5 text-left transition-colors",
-                option.value === value
-                  ? "bg-brand-green-soft text-accent font-semibold"
-                  : index === activeIndex
-                    ? "bg-core-surface-ii text-primary"
-                    : "text-primary hover:bg-core-surface-ii",
-              ].join(" ")}
-              onMouseEnter={() => setActiveIndex(index)}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => commit(option.value)}
-            >
-              {option.label}
-            </button>
-          ))
-        )}
+        {menuBody}
       </div>
     ) : null;
 
@@ -298,7 +316,7 @@ export function Selector({
         </button>
       )}
 
-      {menu ? createPortal(menu, document.body) : null}
+      {menu ? (portal ? createPortal(menu, document.body) : menu) : null}
     </div>
   );
 }

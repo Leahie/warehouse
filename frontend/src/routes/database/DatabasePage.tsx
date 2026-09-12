@@ -6,7 +6,7 @@ import {
   type ColumnKey,
 } from "@/components/database/FilterPopover";
 import { InfiniteSentinel } from "@/components/InfiniteSentinel";
-import { LoadingIcon } from "@/components/LoadingIcon";
+import { LoadingPanel } from "@/components/LoadingIcon";
 import { Selector } from "@/components/Selector";
 import { StatusChip } from "@/components/database/StatusChip";
 import { industryFor } from "@/api/adapters";
@@ -51,6 +51,19 @@ function formatDate(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "—";
   return parsed.toISOString().slice(0, 10);
+}
+
+function dateKey(row: OrderRow) {
+  if (row.date && row.date !== "unknown" && /^\d{4}-\d{2}-\d{2}/.test(row.date)) {
+    return row.date.slice(0, 10);
+  }
+  return "";
+}
+
+function compareRows(a: OrderRow, b: OrderRow) {
+  const byDate = dateKey(b).localeCompare(dateKey(a));
+  if (byDate !== 0) return byDate;
+  return (b.time_process_finished || "").localeCompare(a.time_process_finished || "");
 }
 
 function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
@@ -158,7 +171,10 @@ export function DatabasePage() {
     }
   }
 
-  const rows = useMemo(() => applyFilters(orders, filters), [filters, orders]);
+  const rows = useMemo(
+    () => applyFilters(orders, filters).slice().sort(compareRows),
+    [filters, orders],
+  );
 
   const activeChips = Object.entries(filters).filter(([, value]) => {
     if (Array.isArray(value)) return value.length > 0;
@@ -300,9 +316,9 @@ export function DatabasePage() {
           <tbody>
             {isLoading && orders.length === 0 ? (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-4 py-16">
+                <td colSpan={COLUMNS.length} className="px-4 py-20">
                   <div className="flex justify-center">
-                    <LoadingIcon label="Loading orders" />
+                    <LoadingPanel label="Loading orders…" />
                   </div>
                 </td>
               </tr>
@@ -325,15 +341,16 @@ export function DatabasePage() {
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              rows.map((row, index) => (
                 <tr
                   key={row.order_id}
-                  className="border-core border-b hover:bg-core-surface-ii/50 transition-colors"
-                  style={
-                    row.status === "flagged"
+                  className="animate-row-in border-core border-b hover:bg-core-surface-ii/50 transition-colors"
+                  style={{
+                    animationDelay: `${Math.min(index, 12) * 40}ms`,
+                    ...(row.status === "flagged"
                       ? { background: "var(--color-alert-wash)" }
-                      : undefined
-                  }
+                      : {}),
+                  }}
                 >
                   <td className="text-body2-default text-primary px-4 py-3 font-mono text-xs">
                     {formatDate(row.date)}
@@ -372,7 +389,7 @@ export function DatabasePage() {
           onVisible={loadMore}
           disabled={!hasMore || isLoading}
           root={scroller}
-          label="Loading more orders"
+          label="Loading more orders…"
         />
       </div>
     </section>

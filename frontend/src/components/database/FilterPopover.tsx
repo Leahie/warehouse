@@ -58,7 +58,13 @@ export function FilterPopover({
       if (event.key === "Escape") onClose();
     }
     function onClick(event: MouseEvent) {
-      if (!ref.current?.contains(event.target as Node)) onClose();
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (ref.current?.contains(target)) return;
+      const el = target instanceof Element ? target : target.parentElement;
+      // Portaled selector menus still belong to this dialog.
+      if (el?.closest("[data-selector-menu]")) return;
+      onClose();
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onClick);
@@ -146,6 +152,7 @@ export function FilterPopover({
             value={(draft[column] as string | undefined) ?? ""}
             onChange={(val) => onChange({ ...draft, [column]: val })}
             allowCustom
+            portal={false}
           />
         </div>
       ) : null}

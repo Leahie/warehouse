@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { LoadingIcon } from "@/components/LoadingIcon";
+import { LoadingPanel } from "@/components/LoadingIcon";
 import type { StatusBreakdown } from "@/types/logs";
 import { STATUS_COLORS } from "@/constants/statuses";
 
@@ -92,45 +92,52 @@ export function LogsChart({ groups, points, mode, singleManufacturerName, isLoad
       </div>
 
       {empty ? (
-        <div className="flex flex-1 flex-col items-center justify-center rounded-default border-2 border-dashed border-core p-8 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
           {isLoading ? (
-            <LoadingIcon label="Loading chart data" />
+            <LoadingPanel label="Loading chart data…" />
           ) : (
-            <>
+            <div className="animate-card-in rounded-default border-2 border-dashed border-core px-8 py-10">
               <p className="text-body1-default text-primary font-medium m-0">No chart data displayed</p>
               <p className="text-body2-default text-secondary mt-1 mb-0">
                 Select a time range and choose Multiple or Single above to view analytics.
               </p>
-            </>
+            </div>
           )}
         </div>
       ) : (
-        <div className="flex min-w-0 flex-col">
-          <div className="flex min-w-0">
-            <YAxis ticks={ticks} />
-            <div className="relative min-w-0 flex-1 overflow-x-auto">
-              {mode === "single" ? (
-                <LinePlot points={points} ceiling={ceiling} ticks={ticks} />
+        <div className="relative flex min-w-0 flex-col">
+          {isLoading ? (
+            <div className="absolute inset-0 z-20 flex items-center justify-center rounded-default bg-core-surface/70">
+              <LoadingPanel label="Updating chart…" />
+            </div>
+          ) : null}
+          <div className="animate-card-in flex min-w-0 flex-col">
+            <div className="flex min-w-0">
+              <YAxis ticks={ticks} />
+              <div className="relative min-w-0 flex-1 overflow-x-auto">
+                {mode === "single" ? (
+                  <LinePlot points={points} ceiling={ceiling} ticks={ticks} />
+                ) : (
+                  <GroupedBars groups={groups} ceiling={ceiling} ticks={ticks} />
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 pl-20 text-center">
+              {mode === "multiple" ? (
+                <div className="text-body2-heavy text-secondary tracking-wide">Date</div>
               ) : (
-                <GroupedBars groups={groups} ceiling={ceiling} ticks={ticks} />
+                <div className="space-y-0.5">
+                  <div className="text-body2-heavy text-secondary tracking-wide">Date</div>
+                  {singleManufacturerName ? (
+                    <div className="text-body2-default text-primary font-medium">
+                      Manufacturer:{" "}
+                      <span className="text-brand-green font-semibold">{singleManufacturerName}</span>
+                    </div>
+                  ) : null}
+                </div>
               )}
             </div>
-          </div>
-
-          <div className="mt-4 pl-20 text-center">
-            {mode === "multiple" ? (
-              <div className="text-body2-heavy text-secondary tracking-wide">Date</div>
-            ) : (
-              <div className="space-y-0.5">
-                <div className="text-body2-heavy text-secondary tracking-wide">Date</div>
-                {singleManufacturerName ? (
-                  <div className="text-body2-default text-primary font-medium">
-                    Manufacturer:{" "}
-                    <span className="text-brand-green font-semibold">{singleManufacturerName}</span>
-                  </div>
-                ) : null}
-              </div>
-            )}
           </div>
         </div>
       )}

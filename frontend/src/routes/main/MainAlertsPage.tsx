@@ -7,6 +7,7 @@ import {
   type SeverityFilter,
 } from "@/components/alerts/AlertSummary";
 import { InfiniteSentinel } from "@/components/InfiniteSentinel";
+import { LoadingPanel } from "@/components/LoadingIcon";
 import { WEEK_MS } from "@/constants/statuses";
 import type { AlertCard as AlertCardType } from "@/types/alert";
 import { useAlerts, useAllAlerts } from "@/api/useLiveData";
@@ -137,7 +138,9 @@ export function MainAlertsPage() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pr-1">
         {isLoading && weekly.length === 0 ? (
-          <p className="text-body1-default text-secondary">Loading alerts…</p>
+          <div className="flex justify-center py-10">
+            <LoadingPanel label="Loading alerts…" />
+          </div>
         ) : visible.length === 0 ? (
           <p className="text-body1-default text-secondary">
             {selectedDay || severity !== "all"

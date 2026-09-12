@@ -176,6 +176,9 @@ export function VoicePage() {
           stage: "done",
           is_alert: true,
           order_id: alert.order_id,
+          item: alert.item,
+          supplier: alert.supplier,
+          lot_code: alert.lot_code,
           created_at: alert.created_at,
           summary: `No recorded conversation for ${alert.order_id}`,
           messages: [
@@ -295,6 +298,9 @@ export function VoicePage() {
           ...session,
           stage: "done",
           is_alert: true,
+          item: session.item ?? "strawberries",
+          supplier: session.supplier ?? "Berry Grove Co",
+          lot_code: session.lot_code ?? "S4410",
           summary,
           messages: [
             ...session.messages,

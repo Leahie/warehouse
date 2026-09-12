@@ -4,6 +4,9 @@
     "stage": "done",
     "is_alert": true,
     "order_id": "RCV-4419-ROM",
+    "item": "romaine",
+    "supplier": "Fresh Farms",
+    "lot_code": "R2298",
     "created_at": "2026-09-12T14:10:00Z",
     "summary": "Received 40 cases romaine, lot R2298, Fresh Farms — short vs PO 50; worker confirmed.",
     "messages": [
@@ -71,6 +74,9 @@
     "stage": "done",
     "is_alert": true,
     "order_id": "RCV-4421-STR",
+    "item": "strawberries",
+    "supplier": "Berry Grove Co",
+    "lot_code": "S4410",
     "created_at": "2026-09-11T18:00:00Z",
     "summary": "Alert: BoL (24 flats) ≠ packing slip (20 flats) strawberries S4410 Berry Grove Co.",
     "messages": [
@@ -125,6 +131,9 @@
     "stage": "done",
     "is_alert": true,
     "order_id": "RCV-4410-SPI",
+    "item": "spinach",
+    "supplier": "GreenLeaf Produce",
+    "lot_code": "P1188",
     "created_at": "2026-09-10T09:35:00Z",
     "summary": "Alert: Heartbeat stale — no worker response on spinach P1188 GreenLeaf Produce.",
     "messages": [
@@ -172,6 +181,9 @@
     "stage": "done",
     "is_alert": true,
     "order_id": "RCV-4402-AVO",
+    "item": "avocado",
+    "supplier": "Fresh Farms",
+    "lot_code": "A9921",
     "created_at": "2026-09-08T16:05:00Z",
     "summary": "Alert: Lot code missing on slip — Fresh Farms avocado A9921.",
     "messages": [
@@ -219,6 +231,9 @@
     "stage": "done",
     "is_alert": true,
     "order_id": "RCV-4399-MIX",
+    "item": "mixed greens",
+    "supplier": "CoolChain Farms",
+    "lot_code": "M7701",
     "created_at": "2026-09-05T10:55:00Z",
     "summary": "Alert: Temperature 48°F out of range (>41°F) CoolChain mixed greens M7701.",
     "messages": [
@@ -273,6 +288,9 @@
     "stage": "done",
     "is_alert": false,
     "order_id": "RCV-4420-SPI",
+    "item": "spinach",
+    "supplier": "GreenLeaf Produce",
+    "lot_code": "P1188",
     "created_at": "2026-09-11T15:20:00Z",
     "summary": "Committed 30 cases spinach, lot P1188, GreenLeaf Produce.",
     "messages": [

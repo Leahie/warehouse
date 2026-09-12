@@ -20,5 +20,8 @@ export type VoiceSession = {
   summary: string | null;
   is_alert: boolean;
   order_id?: string;
+  item?: string;
+  supplier?: string;
+  lot_code?: string;
   created_at: string;
 };

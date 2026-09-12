@@ -291,6 +291,12 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
           o.order_id === resolvedOrderId &&
           (o.status === "committed" || o.status === "flagged"),
       );
+      const linkedOrder = orders.find((o) => o.order_id === resolvedOrderId);
+      const firstString = (key: "item" | "supplier" | "lot_code") =>
+        ordered
+          .map((e) => (e.payload ?? {}) as Record<string, unknown>)
+          .map((p) => p[key])
+          .find((v): v is string => typeof v === "string" && v.trim().length > 0);
       // Seed events never carry a browser session_id. Those historical
       // threads already produced an order and belong under Logged
       // Conversations — otherwise every pending_clarification from the
@@ -319,6 +325,9 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
           ? orders.find((o) => o.order_id === resolvedOrderId)?.status === "flagged"
           : false,
         order_id: resolvedOrderId ?? undefined,
+        item: linkedOrder?.item || firstString("item") || undefined,
+        supplier: linkedOrder?.supplier || firstString("supplier") || undefined,
+        lot_code: linkedOrder?.lot_code || firstString("lot_code") || undefined,
         created_at: ordered[0].t,
       };
     })

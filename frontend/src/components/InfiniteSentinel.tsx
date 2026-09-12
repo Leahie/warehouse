@@ -31,8 +31,9 @@ export function InfiniteSentinel({ onVisible, disabled, label = "Loading more", 
 
   if (disabled) return null;
   return (
-    <div ref={nodeRef} className="flex justify-center py-3">
+    <div ref={nodeRef} className="animate-card-in flex items-center justify-center gap-2 py-4">
       <LoadingIcon label={label} />
+      {label ? <span className="text-body2-default text-secondary">{label}</span> : null}
     </div>
   );
 }
