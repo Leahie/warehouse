@@ -50,7 +50,10 @@ export function VoicePage() {
   // The order the worker is looking at, sent with each recording.
   const currentOrderRef = useRef<string | null>(null);
   const currentIdRef = useRef<string | null>(null);
-  const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions);
+  // Whatever the URL points at must be in the list, even if it is an older
+  // conversation reached from an alert.
+  const pinnedId = routeSessionId ?? searchParams.get("order") ?? selectedId;
+  const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions, pinnedId);
 
   const sessions = useMemo(() => {
     const liveIds = new Set(liveSessions.map((s) => s.session_id));

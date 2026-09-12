@@ -300,13 +300,28 @@ export function useAllAlerts(fallback: AlertCard[]): Live<AlertCard[]> {
   );
 }
 
-export function useVoiceSessions(fallback: VoiceSession[]): Live<VoiceSession[]> {
+/**
+ * @param pin session id or order id that must appear in the result even if it
+ *   falls outside the recent window -- following an alert to an older
+ *   conversation has to work, and the cap is only there to keep the sidebar
+ *   cheap to render.
+ */
+export function useVoiceSessions(
+  fallback: VoiceSession[],
+  pin?: string | null,
+): Live<VoiceSession[]> {
   const { value, error, settled } = usePoll<{ events: ApiEvent[]; orders: ApiOrder[] }>(
     async (s) => ({ events: await fetchEvents("voice", s), orders: await fetchOrders(s) }),
   );
   return useMemo(() => {
     const all = value ? toVoiceSessions(value.events, value.orders) : null;
-    const sessions = all ? all.slice(0, MAX_SESSIONS) : null;
+    let sessions = all ? all.slice(0, MAX_SESSIONS) : null;
+    if (all && sessions && pin) {
+      const pinned = all.find((s) => s.session_id === pin || s.order_id === pin);
+      if (pinned && !sessions.some((s) => s.session_id === pinned.session_id)) {
+        sessions = [pinned, ...sessions];
+      }
+    }
     return {
       data: sessions && sessions.length ? sessions : settled ? fallback : [],
       isLive: value !== null,
