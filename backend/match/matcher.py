@@ -185,7 +185,12 @@ def match_receipt(
 
     if office_broken:
         status = "flagged"
-        flag_reason = "purchase order and bill of lading disagree"
+        if item_po_bol == "mismatch":
+            flag_reason = "Item substitution on bill of lading"
+        elif supplier_po_bol == "mismatch":
+            flag_reason = "Supplier mismatch on bill of lading"
+        else:
+            flag_reason = "Purchase order and bill of lading disagree"
     elif quality == "bad":
         # The worker is looking at the pallet; that beats any document.
         status = "flagged"

@@ -1,4 +1,5 @@
-// Infinite pages for alerts / orders / companies. Voice still polls the event stream.
+// Orders/alerts page through the API and poll to refresh the loaded prefix.
+// Voice still polls the full event stream.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -19,7 +20,7 @@ import {
   type ApiSupplier,
   type Page,
 } from "./client";
-import { expectedToOrderRow, toAlertCard, toOrderRow, toVoiceSessions } from "./adapters";
+import { expectedToOrderRow, industryFor, toAlertCard, toOrderRow, toVoiceSessions } from "./adapters";
 import type { OrderRow } from "@/types/order";
 import type { AlertCard } from "@/types/alert";
 import type { VoiceSession } from "@/types/voice";
@@ -27,6 +28,20 @@ import type { LogsAggregateFile, StatusBreakdown } from "@/types/logs";
 
 const POLL_MS = Number(import.meta.env.VITE_POLL_MS ?? 4000);
 const MAX_SESSIONS = Number(import.meta.env.VITE_MAX_SESSIONS ?? 60);
+/** Matches backend `_page()` cap in `backend/api/main.py`. */
+const MAX_PAGE_LIMIT = 100;
+
+function uniqueById<T>(items: T[], idOf: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    const id = idOf(item);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(item);
+  }
+  return out;
+}
 
 export type Live<T> = {
   data: T;
@@ -87,68 +102,94 @@ function useInfinitePage<T>(opts: {
   const pageSize = opts.pageSize ?? PAGE_SIZE;
   const [items, setItems] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
   const [isLive, setIsLive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const offsetRef = useRef(0);
   const busyRef = useRef(false);
+  const genRef = useRef(0);
+  const loadedRef = useRef(0);
   const loadRef = useRef(opts.load);
   const fallbackRef = useRef(opts.fallback);
   const idOfRef = useRef(opts.idOf);
   loadRef.current = opts.load;
   fallbackRef.current = opts.fallback;
   idOfRef.current = opts.idOf;
+  loadedRef.current = items.length;
 
   const resetKey = JSON.stringify(opts.deps ?? []);
+  const hasMore = items.length < total;
 
-  const run = useCallback(async (replace: boolean, signal: AbortSignal) => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    const offset = replace ? 0 : offsetRef.current;
-    try {
-      const page = await loadRef.current(offset, pageSize, signal);
-      if (signal.aborted) return;
-      setIsLive(true);
-      setError(null);
-      setTotal(page.total);
-      setHasMore(page.has_more);
-      offsetRef.current = offset + page.items.length;
-      setItems((prev) => {
-        if (replace) return page.items;
-        const seen = new Set(prev.map((item) => idOfRef.current(item)));
-        return [...prev, ...page.items.filter((item) => !seen.has(idOfRef.current(item)))];
-      });
-    } catch (err) {
-      if (signal.aborted) return;
-      const fallback = fallbackRef.current;
-      const slice = fallback.slice(offset, offset + pageSize);
-      setIsLive(false);
-      setError((err as Error).message);
-      setTotal(fallback.length);
-      setHasMore(offset + slice.length < fallback.length);
-      offsetRef.current = offset + slice.length;
-      setItems((prev) => (replace ? slice : [...prev, ...slice]));
-    } finally {
-      busyRef.current = false;
-      setIsLoading(false);
-    }
-  }, [pageSize]);
+  const run = useCallback(
+    async (mode: "replace" | "append" | "refresh", signal: AbortSignal, gen: number) => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      if (mode !== "refresh") setIsLoading(true);
+
+      const offset = mode === "append" ? loadedRef.current : 0;
+      const limit =
+        mode === "refresh"
+          ? Math.min(Math.max(loadedRef.current, pageSize), MAX_PAGE_LIMIT)
+          : pageSize;
+
+      try {
+        const page = await loadRef.current(offset, limit, signal);
+        if (signal.aborted || gen !== genRef.current) return;
+        const idOf = idOfRef.current;
+        const incoming = uniqueById(page.items, idOf);
+        setIsLive(true);
+        setError(null);
+        setTotal(page.total);
+        setItems((prev) => {
+          if (mode !== "append") return incoming;
+          const seen = new Set(prev.map(idOf));
+          return [...prev, ...incoming.filter((item) => !seen.has(idOf(item)))];
+        });
+      } catch (err) {
+        if (signal.aborted || gen !== genRef.current) return;
+        setError((err as Error).message);
+        // A failed load-more must not glue fixture rows onto a live page — that
+        // is what produced "Showing 16 of 8 orders" (8 live + 8 fallback).
+        if (mode !== "replace") return;
+        const fallback = fallbackRef.current;
+        setIsLive(false);
+        setTotal(fallback.length);
+        setItems(uniqueById(fallback.slice(0, pageSize), idOfRef.current));
+      } finally {
+        if (gen === genRef.current) {
+          busyRef.current = false;
+          if (mode !== "refresh") setIsLoading(false);
+        }
+      }
+    },
+    [pageSize],
+  );
 
   useEffect(() => {
-    offsetRef.current = 0;
+    const gen = ++genRef.current;
     setItems([]);
-    setHasMore(true);
+    setTotal(0);
     setIsLoading(true);
     busyRef.current = false;
     const controller = new AbortController();
-    void run(true, controller.signal);
+    void run("replace", controller.signal, gen);
     return () => controller.abort();
+  }, [resetKey, run]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const id = window.setInterval(() => {
+      if (busyRef.current) return;
+      void run("refresh", controller.signal, genRef.current);
+    }, POLL_MS);
+    return () => {
+      window.clearInterval(id);
+      controller.abort();
+    };
   }, [resetKey, run]);
 
   const loadMore = useCallback(() => {
     if (!hasMore || busyRef.current || isLoading) return;
-    void run(false, new AbortController().signal);
+    void run("append", new AbortController().signal, genRef.current);
   }, [hasMore, isLoading, run]);
 
   return { data: items, total, hasMore, loadMore, isLive, isLoading, error };
@@ -196,6 +237,30 @@ export function useProgress(): Live<ApiProgress | null> {
   );
 }
 
+function uniqueSorted(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
+/** Distinct filter lists from GET /orders/facets — companies, items, industries, etc. */
+export function useFacetOptions() {
+  const facets = useOrderFacets();
+  return useMemo(() => {
+    const items = uniqueSorted(facets?.items ?? []);
+    const suppliers = uniqueSorted(facets?.suppliers ?? []);
+    const qualities = uniqueSorted(facets?.qualities ?? []);
+    const dates = facets?.dates ?? [];
+    const industries = uniqueSorted(items.map((item) => industryFor(item)));
+    return {
+      items,
+      suppliers,
+      qualities,
+      dates,
+      industries,
+      loaded: Boolean(facets),
+    };
+  }, [facets]);
+}
+
 export function useAlerts(fallback: AlertCard[]): InfiniteLive<AlertCard> {
   return useInfinitePage({
     fallback,
@@ -236,22 +301,60 @@ function suppliersToAggregate(rows: ApiSupplier[]): LogsAggregateFile {
   return { manufacturers, note: "live from /api/suppliers" };
 }
 
+function fallbackForNames(fallback: LogsAggregateFile, names: string[]): LogsAggregateFile {
+  const manufacturers: Record<string, Record<string, StatusBreakdown>> = {};
+  for (const raw of names) {
+    const resolved = Object.keys(fallback.manufacturers).find(
+      (n) => n.toLowerCase() === raw.trim().toLowerCase(),
+    );
+    if (resolved) manufacturers[resolved] = fallback.manufacturers[resolved];
+  }
+  return { manufacturers, note: "fixture fallback" };
+}
+
 export function useLogsAggregate(
   fallback: LogsAggregateFile,
   range: { start: string; end: string },
-): InfiniteLive<never> & { data: LogsAggregateFile; names: string[] } {
-  const page = useInfinitePage<ApiSupplier>({
-    fallback: Object.entries(fallback.manufacturers).map(([name, days]) => ({ name, days })),
-    idOf: (row) => row.name,
-    deps: [range.start, range.end],
-    load: (offset, limit, signal) => fetchSuppliersPage(offset, limit, range, signal),
-  });
-  const aggregate = useMemo(() => suppliersToAggregate(page.data), [page.data]);
-  return {
-    ...page,
-    data: page.data.length ? aggregate : page.isLoading ? EMPTY_LOGS : fallback,
-    names: page.data.map((row) => row.name),
-  };
+  names: string[],
+): Live<LogsAggregateFile> {
+  const cleaned = names.map((n) => n.trim()).filter(Boolean);
+  const nameKey = cleaned.join("\0");
+  const { value, error, settled } = usePoll<ApiSupplier[]>(
+    async (signal) => {
+      if (!cleaned.length) return [];
+      const page = await fetchSuppliersPage(
+        0,
+        Math.max(cleaned.length, 1),
+        { start: range.start, end: range.end, names: cleaned },
+        signal,
+      );
+      return page.items;
+    },
+    [range.start, range.end, nameKey],
+  );
+
+  return useMemo(() => {
+    const currentNames = nameKey ? nameKey.split("\0") : [];
+    const matching =
+      value?.filter((row) =>
+        currentNames.some((name) => name.toLowerCase() === row.name.toLowerCase()),
+      ) ?? null;
+    const complete =
+      matching !== null &&
+      currentNames.every((name) =>
+        matching.some((row) => row.name.toLowerCase() === name.toLowerCase()),
+      );
+    return {
+      data: complete
+        ? suppliersToAggregate(matching)
+        : settled && value === null
+          ? fallbackForNames(fallback, currentNames)
+          : EMPTY_LOGS,
+      isLive: complete,
+      isLoading: !settled || !complete,
+      error,
+    };
+  }, [value, error, settled, fallback, nameKey]);
 }
 
 export type { ApiOrder, ApiAlert, ApiEvent };

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { OrderStatus } from "@/types/order";
 import { STATUS_LABELS } from "@/constants/statuses";
-import { SearchableDropdown } from "./SearchableDropdown";
+import { Selector } from "@/components/Selector";
 
 export type ColumnKey =
   | "date"
@@ -140,12 +140,13 @@ export function FilterPopover({
 
       {column === "item" || column === "industry" || column === "quality" || column === "supplier_lot" ? (
         <div className="flex flex-col gap-1">
-          <SearchableDropdown
+          <Selector
             label={`Select or type ${title}:`}
             placeholder={`Type to search ${title.toLowerCase()}…`}
             options={options}
             value={(draft[column] as string | undefined) ?? ""}
             onChange={(val) => onChange({ ...draft, [column]: val })}
+            allowCustom
           />
         </div>
       ) : null}

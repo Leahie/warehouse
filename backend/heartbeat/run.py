@@ -23,7 +23,7 @@ def tick(store: Store | None = None) -> None:
     for clq in store.stale_open_clarifications(cutoff):
         store.flag(
             clq["order_id"],
-            reason=f"clarification {clq['clarification_id']} unanswered",
+            reason="Heartbeat stale — no voice confirm",
             source="heartbeat",
             actor="heartbeat",
         )

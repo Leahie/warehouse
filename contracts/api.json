@@ -5,7 +5,7 @@
     {"method": "GET", "path": "/events", "who": "console", "does": "log stream"},
     {"method": "GET", "path": "/orders", "who": "console+frontend", "does": "receipt rows; default limit=10, scroll with offset. limit=0 returns all"},
     {"method": "GET", "path": "/orders/facets", "who": "frontend", "does": "distinct items/suppliers/dates for filters"},
-    {"method": "GET", "path": "/suppliers", "who": "frontend logs", "does": "company aggregates; default limit=10, scroll with offset"},
+    {"method": "GET", "path": "/suppliers", "who": "frontend logs", "does": "company aggregates; default limit=10, scroll with offset. names= filters to specific companies"},
     {"method": "GET", "path": "/papers", "who": "console", "does": "on-file PO/BOL vs packing slip the worker sees"},
     {"method": "GET", "path": "/orders/:id", "who": "console", "does": "one object + papers + voice + alerts"},
     {"method": "GET", "path": "/alerts", "who": "console+frontend", "does": "red alerts; default limit=10, scroll with offset. includes related orders for the page"},

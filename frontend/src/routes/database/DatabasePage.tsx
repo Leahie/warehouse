@@ -5,11 +5,11 @@ import {
   type ColumnFilterState,
   type ColumnKey,
 } from "@/components/database/FilterPopover";
-import { SearchableDropdown } from "@/components/database/SearchableDropdown";
+import { Selector } from "@/components/Selector";
 import { StatusChip } from "@/components/database/StatusChip";
 import { industryFor } from "@/api/adapters";
 import type { OrderRow } from "@/types/order";
-import { useExpectedReceipts, useOrderFacets, useProgress } from "@/api/useLiveData";
+import { useExpectedReceipts, useFacetOptions, useProgress } from "@/api/useLiveData";
 
 const fallbackOrders = ordersData as OrderRow[];
 
@@ -73,15 +73,17 @@ function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
 export function DatabasePage() {
   // Show what the warehouse is expecting, not only what has been received.
   const { data: orders } = useExpectedReceipts(fallbackOrders);
-  const facets = useOrderFacets();
+  const facets = useFacetOptions();
   const { data: progress } = useProgress();
   const [filters, setFilters] = useState<ColumnFilterState>({});
   const [draft, setDraft] = useState<ColumnFilterState>({});
   const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);
 
   const allIndustries = useMemo(() => {
-    const set = new Set<string>();
-    (facets?.items ?? orders.map((o) => o.item)).forEach((item) => set.add(industryFor(item)));
+    const set = new Set<string>(facets.industries);
+    (facets.items.length ? facets.items : orders.map((o) => o.item)).forEach((item) =>
+      set.add(industryFor(item)),
+    );
     orders.forEach((o) => {
       if (o.industry) set.add(o.industry);
     });
@@ -89,33 +91,32 @@ export function DatabasePage() {
   }, [facets, orders]);
 
   const allItems = useMemo(() => {
-    const set = new Set<string>(facets?.items ?? []);
+    const set = new Set<string>(facets.items);
     orders.forEach((o) => set.add(o.item));
     return Array.from(set).sort();
-  }, [facets, orders]);
+  }, [facets.items, orders]);
 
   const allQualities = useMemo(() => {
-    const set = new Set<string>(facets?.qualities ?? []);
+    const set = new Set<string>(facets.qualities);
     orders.forEach((o) => {
       if (o.quality) set.add(o.quality);
     });
     return Array.from(set).sort();
-  }, [facets, orders]);
+  }, [facets.qualities, orders]);
 
   const allSuppliersLots = useMemo(() => {
-    const set = new Set<string>();
-    (facets?.suppliers ?? []).forEach((name) => set.add(name));
+    const set = new Set<string>(facets.suppliers);
     orders.forEach((o) => {
       set.add(`${o.supplier} · ${o.lot_code}`);
     });
     return Array.from(set).sort();
-  }, [facets, orders]);
+  }, [facets.suppliers, orders]);
 
   const allDates = useMemo(() => {
-    const set = new Set<string>(facets?.dates ?? []);
+    const set = new Set<string>(facets.dates);
     orders.forEach((o) => set.add(o.date));
     return Array.from(set).sort().reverse();
-  }, [facets, orders]);
+  }, [facets.dates, orders]);
 
   function getColumnOptions(col: ColumnKey): string[] {
     switch (col) {
@@ -163,7 +164,7 @@ export function DatabasePage() {
 
         {/* Industry selector dropdown with typing support */}
         <div className="w-72">
-          <SearchableDropdown
+          <Selector
             label="Industry Filter"
             placeholder="Type or select industry…"
             options={allIndustries}
@@ -184,7 +185,7 @@ export function DatabasePage() {
           </span>
         </div>
         <span className="text-body3-default text-secondary">
-            Showing {rows.length} of {orders.length} orders
+          Showing {rows.length} of {orders.length} orders
         </span>
       </div>
 

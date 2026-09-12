@@ -16,6 +16,48 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+INFO_REASONS = {
+    "Temperature advisory",
+    "Late paperwork — still matched",
+    "Expected variance within tolerance",
+}
+WARNING_REASONS = {
+    "Heartbeat stale — no voice confirm",
+    "Lot code missing on slip",
+    "Over-ship confirmed by worker",
+    "Quality damage reported",
+    "Item substitution on bill of lading",
+    "Supplier mismatch on bill of lading",
+    "BoL ≠ packing slip",
+}
+CRITICAL_SOURCES = {"worker_confirm", "three_way_mismatch", "supervisor"}
+
+
+def severity_for(source: str, reason: str) -> str:
+    if source == "info" or reason in INFO_REASONS:
+        return "info"
+    if reason in WARNING_REASONS or source in {"heartbeat", "docs"}:
+        return "warning"
+    if source in CRITICAL_SOURCES:
+        return "critical"
+    return "warning"
+
+
+def _worker_confirm_reason(order: dict[str, Any]) -> str:
+    received = order.get("quantity_received")
+    expected = order.get("quantity_expected")
+    try:
+        received_n = None if received is None else int(received)
+        expected_n = None if expected is None else int(expected)
+    except (TypeError, ValueError):
+        received_n = expected_n = None
+    if received_n is not None and expected_n is not None and received_n > expected_n:
+        return "Over-ship confirmed by worker"
+    if received_n is not None and expected_n is not None and received_n < expected_n:
+        return "Short-ship confirmed by worker"
+    return "Quantity discrepancy confirmed by worker"
+
+
 class Store:
     def __init__(self, uri: str | None = None, db_name: str = "dockcheck") -> None:
         self.client = MongoClient(uri or os.environ.get("MONGO_URI", "mongodb://127.0.0.1:27017"))
@@ -332,7 +374,13 @@ class Store:
                 {"$set": {"order_id": order_id}},
             )
         if intent == "confirm_discrepancy":
-            return self.flag(order_id, reason="short-ship confirmed by worker", source="worker_confirm", actor=actor)
+            order = self.db.orders.find_one({"order_id": order_id}, {"_id": 0}) or {}
+            return self.flag(
+                order_id,
+                reason=_worker_confirm_reason(order),
+                source="worker_confirm",
+                actor=actor,
+            )
         if intent == "correct_entry":
             parsed = event.get("parsed") or {}
             return self.db.orders.find_one_and_update(
@@ -364,7 +412,7 @@ class Store:
         now = created_at or _now()
         alert_id = f"ALT-{order_id}"
         if not severity:
-            severity = "critical" if source in {"worker_confirm", "three_way_mismatch", "supervisor"} else "warning"
+            severity = severity_for(source, reason)
         alert = {
             "alert_id": alert_id,
             "order_id": order_id,
@@ -387,8 +435,16 @@ class Store:
             })
         return alert
 
-    def flag(self, order_id: str, *, reason: str, source: str, actor: str = "api") -> dict[str, Any]:
-        now = _now()
+    def flag(
+        self,
+        order_id: str,
+        *,
+        reason: str,
+        source: str,
+        actor: str = "api",
+        created_at: datetime | None = None,
+    ) -> dict[str, Any]:
+        now = created_at or _now()
         order = self.db.orders.find_one_and_update(
             {"order_id": order_id},
             {"$set": {
@@ -599,45 +655,13 @@ class Store:
             cursor = cursor.limit(limit)
         return list(cursor), total
 
-    def page_suppliers(
+    def _supplier_day_buckets(
         self,
-        *,
-        offset: int = 0,
-        limit: int | None = 10,
-        start: str | None = None,
-        end: str | None = None,
-    ) -> tuple[list[dict[str, Any]], int]:
-        """Return supplier aggregates, busiest first. One page = `limit` companies."""
-        match: dict[str, Any] = {}
-        created: dict[str, Any] = {}
-        if start:
-            created["$gte"] = datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
-        if end:
-            created["$lt"] = datetime.fromisoformat(end).replace(tzinfo=timezone.utc) + timedelta(days=1)
-        if created:
-            match["$or"] = [
-                {"created_at": created},
-                {"created_at": {"$exists": False}, "updated_at": created},
-            ]
-
-        rank: list[dict[str, Any]] = []
-        if match:
-            rank.append({"$match": match})
-        rank.extend([
-            {"$group": {"_id": {"$ifNull": ["$supplier", "unknown"]}, "n": {"$sum": 1}}},
-            {"$sort": {"n": -1, "_id": 1}},
-        ])
-        counted = list(self.db.orders.aggregate(rank + [{"$count": "n"}]))
-        total = int((counted[0] or {}).get("n") or 0) if counted else 0
-        named = list(self.db.orders.aggregate([
-            *rank,
-            {"$skip": offset},
-            *( [{"$limit": limit}] if limit is not None else [] ),
-        ]))
-        names = [row["_id"] for row in named]
+        names: list[str],
+        match: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         if not names:
-            return [], total
-
+            return []
         day_match: dict[str, Any] = {"supplier": {"$in": names}}
         if match:
             day_match = {"$and": [day_match, match]}
@@ -668,8 +692,55 @@ class Store:
             bucket = days.setdefault(day, {"pending_clarification": 0, "committed": 0, "flagged": 0})
             if status in bucket:
                 bucket[status] += int(row.get("n") or 0)
-        suppliers = [{"name": name, "days": by_name.get(name) or {}} for name in names]
-        return suppliers, total
+        return [{"name": name, "days": by_name.get(name) or {}} for name in names]
+
+    def page_suppliers(
+        self,
+        *,
+        offset: int = 0,
+        limit: int | None = 10,
+        start: str | None = None,
+        end: str | None = None,
+        names: list[str] | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return supplier aggregates, busiest first. One page = `limit` companies.
+
+        When `names` is set, skip rank/pagination and return those companies' day buckets.
+        """
+        match: dict[str, Any] = {}
+        created: dict[str, Any] = {}
+        if start:
+            created["$gte"] = datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
+        if end:
+            created["$lt"] = datetime.fromisoformat(end).replace(tzinfo=timezone.utc) + timedelta(days=1)
+        if created:
+            match["$or"] = [
+                {"created_at": created},
+                {"created_at": {"$exists": False}, "updated_at": created},
+            ]
+
+        wanted = [n.strip() for n in (names or []) if n and str(n).strip()]
+        if wanted:
+            return self._supplier_day_buckets(wanted, match), len(wanted)
+
+        rank: list[dict[str, Any]] = []
+        if match:
+            rank.append({"$match": match})
+        rank.extend([
+            {"$group": {"_id": {"$ifNull": ["$supplier", "unknown"]}, "n": {"$sum": 1}}},
+            {"$sort": {"n": -1, "_id": 1}},
+        ])
+        counted = list(self.db.orders.aggregate(rank + [{"$count": "n"}]))
+        total = int((counted[0] or {}).get("n") or 0) if counted else 0
+        named = list(self.db.orders.aggregate([
+            *rank,
+            {"$skip": offset},
+            *( [{"$limit": limit}] if limit is not None else [] ),
+        ]))
+        ranked_names = [row["_id"] for row in named]
+        if not ranked_names:
+            return [], total
+        return self._supplier_day_buckets(ranked_names, match), total
 
     def stale_open_clarifications(self, older_than) -> list[dict[str, Any]]:
         return list(self.db.clarifications.find({

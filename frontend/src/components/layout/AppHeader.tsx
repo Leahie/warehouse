@@ -1,64 +1,39 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Selector } from "@/components/Selector";
 import { APP_ROUTES } from "@/constants/routes";
 
-export function AppHeader() {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+function MenuIcon() {
+  return (
+    <span className="flex w-4 flex-col gap-1" aria-hidden>
+      <span className="block h-0.5 w-full bg-current" />
+      <span className="block h-0.5 w-full bg-current" />
+      <span className="block h-0.5 w-full bg-current" />
+    </span>
+  );
+}
 
-  useEffect(() => {
-    function onDocClick(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, []);
+export function AppHeader() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const current =
+    APP_ROUTES.find(
+      (route) => location.pathname === route.path || location.pathname.startsWith(`${route.path}/`),
+    ) ?? null;
 
   return (
-    <header className="bg-brand-green relative z-40 flex h-14 items-center justify-between px-8">
+    <header className="bg-brand-green relative z-40 flex h-14 items-center justify-between gap-4 px-8">
       <Link to="/" className="text-wordmark text-on-brand no-underline">
         WareInHouse
       </Link>
 
-      <div className="relative" ref={menuRef}>
-        <button
-          type="button"
-          aria-label="Open menu"
-          aria-expanded={open}
-          className="text-on-brand flex h-10 w-10 items-center justify-center rounded-small hover:bg-white/10"
-          onClick={() => setOpen((value) => !value)}
-        >
-          <span className="flex w-5 flex-col gap-1.5" aria-hidden>
-            <span className="block h-0.5 w-full bg-current" />
-            <span className="block h-0.5 w-full bg-current" />
-            <span className="block h-0.5 w-full bg-current" />
-          </span>
-        </button>
-
-        {open ? (
-          <nav className="animate-dropdown border-core absolute right-0 mt-2 min-w-56 overflow-hidden rounded-default border bg-core-surface shadow-card">
-            {APP_ROUTES.map((route) => (
-              <NavLink
-                key={route.path}
-                to={route.path}
-                onClick={() => setOpen(false)}
-                className={({ isActive }) =>
-                  [
-                    "text-body2-default block px-4 py-3 no-underline transition-colors",
-                    isActive
-                      ? "bg-brand-green-soft text-accent"
-                      : "text-primary hover:bg-core-surface-ii",
-                  ].join(" ")
-                }
-              >
-                {route.label}
-              </NavLink>
-            ))}
-          </nav>
-        ) : null}
-      </div>
+      <Selector
+        className="w-64"
+        placeholder="Go to page…"
+        leading={<MenuIcon />}
+        options={APP_ROUTES.map((route) => ({ value: route.path, label: route.label }))}
+        value={current?.path ?? ""}
+        onChange={(path) => navigate(path || "/")}
+      />
     </header>
   );
 }

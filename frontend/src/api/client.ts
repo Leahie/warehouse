@@ -182,12 +182,16 @@ export const fetchAlertsPage = (offset: number, limit = PAGE_SIZE, s?: AbortSign
 export const fetchSuppliersPage = (
   offset: number,
   limit = PAGE_SIZE,
-  range?: { start?: string; end?: string },
+  range?: { start?: string; end?: string; names?: string[] },
   s?: AbortSignal,
 ) => {
   const q = new URLSearchParams({ offset: String(offset), limit: String(limit) });
   if (range?.start) q.set("start", range.start);
   if (range?.end) q.set("end", range.end);
+  for (const name of range?.names ?? []) {
+    const trimmed = name.trim();
+    if (trimmed) q.append("names", trimmed);
+  }
   return getJson<{
     suppliers: ApiSupplier[];
     total: number;

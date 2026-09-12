@@ -18,7 +18,7 @@ export function TimeRangeControls({
   onModeChange,
 }: Props) {
   return (
-    <div className="card-surface flex flex-wrap items-end justify-end gap-4 p-4">
+    <div className="card-surface flex flex-wrap items-end justify-start gap-4 p-4">
       <label className="flex flex-col gap-1">
         <span className="text-body2-default text-secondary">Time range</span>
         <div className="flex items-center gap-2">

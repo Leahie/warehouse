@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -140,8 +140,31 @@ def alerts(limit: int = 10, offset: int = 0):
     return body
 
 
+def _flatten_names(names: list[str] | None) -> list[str]:
+    if not names:
+        return []
+    out: list[str] = []
+    for raw in names:
+        out.extend(part.strip() for part in raw.split(",") if part.strip())
+    return out
+
+
 @app.get("/api/suppliers")
-def suppliers(limit: int = 10, offset: int = 0, start: str | None = None, end: str | None = None):
+def suppliers(
+    limit: int = 10,
+    offset: int = 0,
+    start: str | None = None,
+    end: str | None = None,
+    names: list[str] | None = Query(None),
+):
+    wanted = _flatten_names(names)
+    if wanted:
+        rows, total = store.page_suppliers(
+            offset=0, limit=None, start=start, end=end, names=wanted,
+        )
+        body = _page_body(rows, total, 0, None)
+        body["suppliers"] = _jsonify(rows)
+        return body
     offset, capped = _page(limit, offset)
     rows, total = store.page_suppliers(offset=offset, limit=capped, start=start, end=end)
     body = _page_body(rows, total, offset, capped)
