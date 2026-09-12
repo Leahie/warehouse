@@ -105,6 +105,8 @@ class Store:
         parsed = parsed or {}
         supplier = (parsed.get("supplier") or "").strip().casefold()
         item = (parsed.get("item") or "").strip().casefold()
+        if not item and not supplier:
+            return None
         for doc in self.db.source_documents.find({"doc_type": "purchase_order"}):
             if supplier and (doc.get("supplier") or "").strip().casefold() != supplier:
                 continue

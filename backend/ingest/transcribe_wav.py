@@ -13,16 +13,17 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "data" / "inbox" / "voice"
 
 
-def transcribe(wav: Path, base: str) -> str:
+def transcribe_bytes(data: bytes, filename: str, base: str) -> str:
     import urllib.request
 
+    name = Path(filename).name or "clip.wav"
     url = base.rstrip("/") + "/audio/transcriptions"
     boundary = uuid.uuid4().hex
     body = (
         f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="file"; filename="{wav.name}"\r\n'
-        "Content-Type: audio/wav\r\n\r\n"
-    ).encode() + wav.read_bytes() + (
+        f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
+        "Content-Type: application/octet-stream\r\n\r\n"
+    ).encode() + data + (
         f"\r\n--{boundary}\r\n"
         'Content-Disposition: form-data; name="response_format"\r\n\r\n'
         "json"
@@ -43,7 +44,11 @@ def transcribe(wav: Path, base: str) -> str:
         return str(payload["text"]).strip()
     if isinstance(payload, str):
         return payload.strip()
-    raise SystemExit(f"unexpected whisper response: {payload!r}")
+    raise RuntimeError(f"unexpected whisper response: {payload!r}")
+
+
+def transcribe(wav: Path, base: str) -> str:
+    return transcribe_bytes(wav.read_bytes(), wav.name, base)
 
 
 def main() -> None:

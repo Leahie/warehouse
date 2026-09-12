@@ -26,6 +26,8 @@ dockcheck-repo/
 
 OpenClaw is the employee. It thinks via local Qwen (`OPENAI_BASE_URL=http://127.0.0.1:8080/v1`). It works via `DOCKCHECK_API=http://127.0.0.1:8787/api`.
 
+The GB10 has no microphone. Record on your laptop: SSH-tunnel or Cursor-forward `:5173`, open `http://127.0.0.1:5173`, hit **Record packing slip**. Audio POSTs to `/api/audio`, Whisper on `:8001` transcribes, the matcher compares that to the on-file PO + BOL, and the Voice pane updates.
+
 Office papers (purchase orders and bills of lading) are already in Mongo. At the dock the worker reads the packing slip; the matcher compares that slip to the on-file PO + BOL.
 
 ## Run

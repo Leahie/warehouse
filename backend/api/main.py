@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -17,6 +18,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from heartbeat.run import tick as heartbeat_tick
 from ingest.run import ingest_voice_doc
+from ingest.transcribe_wav import transcribe_bytes
 from investigate.run import run_investigation
 from store.db import Store
 
@@ -126,6 +128,31 @@ def investigation(investigation_id: str):
     if not found:
         raise HTTPException(404, "investigation not found")
     return _jsonify(found)
+
+
+@app.post("/api/audio")
+async def audio(file: UploadFile = File(...), worker_id: str = Form("W-17")):
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "empty audio")
+    base = os.environ.get("WHISPER_BASE_URL", "http://127.0.0.1:8001/v1")
+    try:
+        utterance = transcribe_bytes(data, file.filename or "clip.wav", base)
+    except Exception as exc:
+        raise HTTPException(502, f"whisper failed: {exc}") from exc
+    if not utterance:
+        raise HTTPException(422, "whisper returned empty transcript")
+    doc = {
+        "event_id": f"EVT-{uuid.uuid4().hex[:8].upper()}",
+        "worker_id": worker_id or "W-17",
+        "utterance": utterance,
+        "parsed": None,
+        "actor": "dock-mic",
+        "ingest_channel": "browser_mic",
+    }
+    result = ingest_voice_doc(store, doc)
+    result["utterance"] = utterance
+    return _jsonify(result)
 
 
 @app.post("/api/voice-events")

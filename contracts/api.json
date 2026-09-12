@@ -10,6 +10,7 @@
     {"method": "POST", "path": "/orders/:id/flag", "who": "supervisor UI", "does": "mark invalid"},
     {"method": "POST", "path": "/investigate", "who": "search pane", "does": "Qwen forensics"},
     {"method": "GET", "path": "/investigations/:id", "who": "search pane", "does": "citation trail"},
+    {"method": "POST", "path": "/audio", "who": "laptop mic or wav upload", "does": "Whisper STT then same matcher as /voice-events"},
     {"method": "POST", "path": "/voice-events", "who": "OpenClaw", "does": "transcript in, matcher writes Mongo"},
     {"method": "POST", "path": "/clarifications/:id/answer", "who": "OpenClaw", "does": "confirm -> alert, correct -> commit"},
     {"method": "GET", "path": "/work", "who": "OpenClaw heartbeat", "does": "open clarifications + alerts without Mongo"},
