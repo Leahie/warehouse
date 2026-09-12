@@ -1,0 +1,275 @@
+@import "tailwindcss";
+@import "@fontsource/fraunces/600.css";
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/600.css";
+@import "@fontsource/source-sans-3/700.css";
+
+/* WareInHouse global tokens — see docs/design-system.md */
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Source Sans 3", "Segoe UI", sans-serif;
+
+  --color-core-root: #f3f6f2;
+  --color-core-surface: #ffffff;
+  --color-core-surface-ii: #e8eee6;
+  --color-core-border: #d5ddd0;
+  --color-core-border-ii: #a8b5a4;
+
+  --color-brand-green: #2f5d4a;
+  --color-brand-green-soft: #dceadf;
+  --color-brand-brown: #6e4b35;
+  --color-brand-brown-soft: #efe6df;
+
+  --color-text-primary: #1c241f;
+  --color-text-secondary: #5a675e;
+  --color-text-tertiary: #7e8b82;
+  --color-text-on-brand: #f7faf6;
+  --color-text-accent: #2f5d4a;
+  --color-text-positive: #2f7a4a;
+  --color-text-warning: #c98900;
+  --color-text-negative: #c43c3c;
+
+  --color-status-pending: #e6b422;
+  --color-status-committed: #2f7a4a;
+  --color-status-flagged: #c43c3c;
+
+  --color-bubble-speaking: #e5e8e4;
+  --color-bubble-parsed: #d6e6f5;
+  --color-alert-wash: #f8e8e8;
+
+  --radius-small: 4px;
+  --radius-default: 10px;
+  --radius-large: 14px;
+
+  --shadow-card: 0 1px 2px rgb(28 36 31 / 0.06), 0 4px 12px rgb(28 36 31 / 0.04);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--color-core-root);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+}
+
+/* Semantic typography utilities (design system) */
+@layer utilities {
+  .text-wordmark {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 28px;
+  }
+
+  .text-h1-default {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 32px;
+  }
+
+  .text-h2-default {
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 28px;
+  }
+
+  .text-h3-default {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .text-h4-default {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .text-h5-default {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .text-body1-default {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 24px;
+  }
+
+  .text-body1-heavy {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 24px;
+  }
+
+  .text-body2-default {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
+  }
+
+  .text-body2-heavy {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 20px;
+  }
+
+  .text-body3-default {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+  }
+
+  .text-primary {
+    color: var(--color-text-primary);
+  }
+
+  .text-secondary {
+    color: var(--color-text-secondary);
+  }
+
+  .text-tertiary {
+    color: var(--color-text-tertiary);
+  }
+
+  .text-on-brand {
+    color: var(--color-text-on-brand);
+  }
+
+  .text-accent {
+    color: var(--color-text-accent);
+  }
+
+  .text-negative {
+    color: var(--color-text-negative);
+  }
+
+  .text-positive {
+    color: var(--color-text-positive);
+  }
+
+  .text-warning {
+    color: var(--color-text-warning);
+  }
+
+  .bg-core-root {
+    background-color: var(--color-core-root);
+  }
+
+  .bg-core-surface {
+    background-color: var(--color-core-surface);
+  }
+
+  .bg-core-surface-ii {
+    background-color: var(--color-core-surface-ii);
+  }
+
+  .bg-brand-green {
+    background-color: var(--color-brand-green);
+  }
+
+  .bg-brand-green-soft {
+    background-color: var(--color-brand-green-soft);
+  }
+
+  .bg-brand-brown-soft {
+    background-color: var(--color-brand-brown-soft);
+  }
+
+  .border-core {
+    border-color: var(--color-core-border);
+  }
+
+  .rounded-small {
+    border-radius: var(--radius-small);
+  }
+
+  .rounded-default {
+    border-radius: var(--radius-default);
+  }
+
+  .rounded-large {
+    border-radius: var(--radius-large);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .animate-card-in {
+    animation: card-in 220ms ease-out both;
+  }
+
+  .animate-dropdown {
+    animation: dropdown-in 160ms ease-out both;
+  }
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* App shell helpers */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-core-root);
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-pad {
+  padding: 24px 32px;
+}
+
+.card-surface {
+  background: var(--color-core-surface);
+  border: 1px solid var(--color-core-border);
+  border-radius: var(--radius-default);
+  box-shadow: var(--shadow-card);
+}

@@ -1,0 +1,145 @@
+[
+  {
+    "session_id": "VS-001",
+    "stage": "done",
+    "is_alert": true,
+    "order_id": "RCV-4419-ROM",
+    "created_at": "2026-09-12T14:10:00Z",
+    "summary": "Received 40 cases romaine, lot R2298, Fresh Farms — short vs PO 50; worker confirmed.",
+    "messages": [
+      {
+        "id": "m1",
+        "role": "system",
+        "text": "Parsing…",
+        "at": "2026-09-12T14:10:01Z"
+      },
+      {
+        "id": "m2",
+        "role": "user",
+        "text": "…",
+        "state": "speaking",
+        "at": "2026-09-12T14:10:02Z"
+      },
+      {
+        "id": "m3",
+        "role": "user",
+        "text": "receiving 40 cases of romaine, lot R2298, from Fresh Farms",
+        "state": "parsed",
+        "at": "2026-09-12T14:10:08Z"
+      },
+      {
+        "id": "m4",
+        "role": "system",
+        "text": "Confirming…",
+        "at": "2026-09-12T14:10:09Z"
+      },
+      {
+        "id": "m5",
+        "role": "agent",
+        "text": "You said 40 cases, the PO expected 50 — can you confirm the count?",
+        "at": "2026-09-12T14:10:10Z"
+      },
+      {
+        "id": "m6",
+        "role": "system",
+        "text": "Correction…",
+        "at": "2026-09-12T14:10:20Z"
+      },
+      {
+        "id": "m7",
+        "role": "user",
+        "text": "yeah that's right, only 40 on the pallet, not 50",
+        "state": "parsed",
+        "at": "2026-09-12T14:10:25Z"
+      },
+      {
+        "id": "m8",
+        "role": "system",
+        "text": "Logging data…",
+        "at": "2026-09-12T14:10:26Z"
+      },
+      {
+        "id": "m9",
+        "role": "agent",
+        "text": "Summary: 40 cases romaine (lot R2298) from Fresh Farms. Discrepancy vs PO 50 confirmed by worker. Order flagged.",
+        "at": "2026-09-12T14:10:28Z"
+      }
+    ]
+  },
+  {
+    "session_id": "VS-002",
+    "stage": "done",
+    "is_alert": false,
+    "order_id": "RCV-4420-SPI",
+    "created_at": "2026-09-11T15:20:00Z",
+    "summary": "Committed 30 cases spinach, lot P1188, GreenLeaf Produce.",
+    "messages": [
+      {
+        "id": "m1",
+        "role": "system",
+        "text": "Parsing…",
+        "at": "2026-09-11T15:20:01Z"
+      },
+      {
+        "id": "m2",
+        "role": "user",
+        "text": "30 cases spinach lot P1188 GreenLeaf",
+        "state": "parsed",
+        "at": "2026-09-11T15:20:06Z"
+      },
+      {
+        "id": "m3",
+        "role": "system",
+        "text": "Confirming…",
+        "at": "2026-09-11T15:20:07Z"
+      },
+      {
+        "id": "m4",
+        "role": "agent",
+        "text": "Matches PO quantity 30. Commit this receipt?",
+        "at": "2026-09-11T15:20:08Z"
+      },
+      {
+        "id": "m5",
+        "role": "user",
+        "text": "yes commit",
+        "state": "parsed",
+        "at": "2026-09-11T15:20:12Z"
+      },
+      {
+        "id": "m6",
+        "role": "system",
+        "text": "Logging data…",
+        "at": "2026-09-11T15:20:13Z"
+      },
+      {
+        "id": "m7",
+        "role": "agent",
+        "text": "Summary: 30 cases spinach, lot P1188, GreenLeaf Produce — committed.",
+        "at": "2026-09-11T15:20:14Z"
+      }
+    ]
+  },
+  {
+    "session_id": "VS-003",
+    "stage": "parsing",
+    "is_alert": false,
+    "created_at": "2026-09-12T15:00:00Z",
+    "summary": null,
+    "messages": [
+      {
+        "id": "m1",
+        "role": "system",
+        "text": "Parsing…",
+        "at": "2026-09-12T15:00:01Z"
+      },
+      {
+        "id": "m2",
+        "role": "user",
+        "text": "…",
+        "state": "speaking",
+        "at": "2026-09-12T15:00:02Z"
+      }
+    ]
+  }
+]

@@ -1,0 +1,52 @@
+[
+  {
+    "alert_id": "ALT-001",
+    "order_id": "RCV-4419-ROM",
+    "reason": "Short-ship confirmed: 40 vs 50 cases",
+    "ai_summary": "Worker voice count (40) disagrees with PO/BoL/packing slip (50). Worker confirmed the pallet was short. Flagged for supervisor review.",
+    "created_at": "2026-09-12T14:22:00Z",
+    "lot_code": "R2298",
+    "supplier": "Fresh Farms",
+    "severity": "critical"
+  },
+  {
+    "alert_id": "ALT-002",
+    "order_id": "RCV-4421-STR",
+    "reason": "BoL ≠ packing slip",
+    "ai_summary": "Bill of lading lists 24 flats of strawberries; packing slip lists 20. Heartbeat opened an alert before voice clarification finished.",
+    "created_at": "2026-09-11T18:05:00Z",
+    "lot_code": "S4410",
+    "supplier": "Berry Grove Co",
+    "severity": "critical"
+  },
+  {
+    "alert_id": "ALT-003",
+    "order_id": "RCV-4410-SPI",
+    "reason": "Heartbeat stale — no voice confirm",
+    "ai_summary": "Order sat in pending clarification beyond the shift threshold. No answering voice event referenced the open clarification.",
+    "created_at": "2026-09-10T09:40:00Z",
+    "lot_code": "P1188",
+    "supplier": "GreenLeaf Produce",
+    "severity": "warning"
+  },
+  {
+    "alert_id": "ALT-004",
+    "order_id": "RCV-4402-AVO",
+    "reason": "Lot code missing on slip",
+    "ai_summary": "Packing slip omitted lot_code while BoL provided A9921. Matcher could not complete three-way lot agreement.",
+    "created_at": "2026-09-08T16:12:00Z",
+    "lot_code": "A9921",
+    "supplier": "Fresh Farms",
+    "severity": "warning"
+  },
+  {
+    "alert_id": "ALT-005",
+    "order_id": "RCV-4399-MIX",
+    "reason": "Temperature out of range",
+    "ai_summary": "Voice reported 48°F for mixed greens; receiving SOP expects ≤41°F. Flagged by supervisor after confirm.",
+    "created_at": "2026-09-05T11:00:00Z",
+    "lot_code": "M7701",
+    "supplier": "CoolChain Farms",
+    "severity": "critical"
+  }
+]

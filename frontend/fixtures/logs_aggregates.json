@@ -1,0 +1,45 @@
+{
+  "note": "Pre-aggregated demo data for Logs page. Keys are supplier names and calendar days.",
+  "manufacturers": {
+    "Fresh Farms": {
+      "2026-09-10": { "pending_clarification": 12, "committed": 40, "flagged": 8 },
+      "2026-09-11": { "pending_clarification": 5, "committed": 55, "flagged": 10 },
+      "2026-09-12": { "pending_clarification": 8, "committed": 30, "flagged": 12 }
+    },
+    "Berry Grove Co": {
+      "2026-09-10": { "pending_clarification": 4, "committed": 22, "flagged": 2 },
+      "2026-09-11": { "pending_clarification": 10, "committed": 18, "flagged": 14 },
+      "2026-09-12": { "pending_clarification": 3, "committed": 28, "flagged": 6 }
+    },
+    "GreenLeaf Produce": {
+      "2026-09-10": { "pending_clarification": 6, "committed": 35, "flagged": 0 },
+      "2026-09-11": { "pending_clarification": 2, "committed": 40, "flagged": 1 },
+      "2026-09-12": { "pending_clarification": 9, "committed": 25, "flagged": 4 }
+    },
+    "CoolChain Farms": {
+      "2026-09-10": { "pending_clarification": 1, "committed": 15, "flagged": 5 },
+      "2026-09-11": { "pending_clarification": 0, "committed": 20, "flagged": 3 },
+      "2026-09-12": { "pending_clarification": 2, "committed": 12, "flagged": 8 }
+    }
+  },
+  "examples": {
+    "multiple_single_day": {
+      "mode": "multiple",
+      "start": "2026-09-12",
+      "end": null,
+      "manufacturers": ["Fresh Farms", "Berry Grove Co"]
+    },
+    "multiple_range": {
+      "mode": "multiple",
+      "start": "2026-09-10",
+      "end": "2026-09-12",
+      "manufacturers": ["Fresh Farms", "Berry Grove Co"]
+    },
+    "single_range": {
+      "mode": "single",
+      "start": "2026-09-10",
+      "end": "2026-09-12",
+      "manufacturers": ["Fresh Farms"]
+    }
+  }
+}
