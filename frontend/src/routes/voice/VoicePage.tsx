@@ -71,6 +71,22 @@ export function VoicePage() {
     sessionsRef.current = sessions;
   }, [sessions]);
 
+  // Overrides are an optimistic layer: they show a turn before the poll catches
+  // up. Once the server reports the same conversation as finished, its copy is
+  // the better one -- keeping the local version forever means any divergence
+  // persists until the page is reloaded.
+  useEffect(() => {
+    setOverrides((prev) => {
+      const stale = liveSessions.filter(
+        (s) => s.stage === "done" && prev[s.session_id],
+      );
+      if (!stale.length) return prev;
+      const next = { ...prev };
+      for (const s of stale) delete next[s.session_id];
+      return next;
+    });
+  }, [liveSessions]);
+
   // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
   const mic = useDockMic({
     contextOrderId: currentOrderRef.current,
@@ -82,6 +98,8 @@ export function VoicePage() {
       // Where the exchange lives. A thread already tied to an order stays put.
       // An ad-hoc thread that has just identified an order graduates into that
       // order's conversation, carrying every message with it so nothing splits.
+      const settled =
+        turn.order?.status === "committed" || turn.order?.status === "flagged";
       const startedIn = viewing ?? newScratchId();
       const targetId = isScratch(startedIn) && orderThread ? orderThread : startedIn;
       const migrating = targetId !== startedIn;
@@ -113,7 +131,14 @@ export function VoicePage() {
           session_id: targetId,
           order_id: turn.order?.order_id ?? base.order_id,
           is_alert: turn.order?.status === "flagged" || base.is_alert,
-          stage: turn.mode === "clarification_answer" ? "logging_data" : "confirming",
+          // A conversation is finished when its receipt is settled. Leaving it
+          // on "confirming" kept a committed receipt sitting under In Progress
+          // until a refresh dropped the override and the server's view took over.
+          stage: settled
+            ? "done"
+            : turn.mode === "clarification_answer"
+              ? "logging_data"
+              : "confirming",
           messages: [...carried, ...base.messages, heard, said],
         };
         const next: Record<string, VoiceSession> = { ...prev, [targetId]: merged };
