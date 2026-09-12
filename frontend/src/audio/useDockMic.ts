@@ -24,13 +24,17 @@ export function useDockMic(
     workerId?: string;
     /** Order shown on screen; lets "yes" resolve against the right question. */
     contextOrderId?: string | null;
+    /** Conversation the turn belongs to, so the server can group it. */
+    sessionId?: string | null;
     onTurn?: (t: DockTurn) => void;
   } = {},
 ) {
-  const { workerId = "W-17", contextOrderId, onTurn } = opts;
+  const { workerId = "W-17", contextOrderId, sessionId, onTurn } = opts;
   // Read at send time, not capture time, so a late selection still counts.
   const contextRef = useRef<string | null | undefined>(contextOrderId);
   contextRef.current = contextOrderId;
+  const sessionRef = useRef<string | null | undefined>(sessionId);
+  sessionRef.current = sessionId;
   const [state, setState] = useState<MicState>("idle");
   const [status, setStatus] = useState("");
   const [lastTurn, setLastTurn] = useState<DockTurn | null>(null);
@@ -92,6 +96,7 @@ export function useDockMic(
       body.append("file", wav, "dock.wav");
       body.append("worker_id", workerId);
       if (contextRef.current) body.append("context_order_id", contextRef.current);
+      if (sessionRef.current) body.append("session_id", sessionRef.current);
       const res = await fetch(`${API_BASE}/audio`, { method: "POST", body });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.detail || "upload failed");

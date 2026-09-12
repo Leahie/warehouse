@@ -97,10 +97,10 @@ class MatchResult:
         }
 
 
-# FDA-recommended holding range for most fresh produce. Outside this the load is
-# a food-safety question, not a paperwork question, so it is flagged rather than
-# clarified. Per-commodity limits belong in the product catalogue when it exists.
-COLD_CHAIN_F = (33.0, 41.0)
+# Fallback holding range, used only when the warehouse has not set its own.
+# Cold chain is per-commodity and per-site, so the real limits come from
+# warehouse settings; this is what a fresh site starts with.
+DEFAULT_COLD_CHAIN_F = (33.0, 41.0)
 
 
 def _to_fahrenheit(value: float, unit: str | None) -> float | None:
@@ -112,6 +112,7 @@ def _to_fahrenheit(value: float, unit: str | None) -> float | None:
 def match_receipt(
     papers: dict[str, dict[str, Any] | None],
     parsed: dict[str, Any] | None,
+    temp_limits_f: tuple[float, float] | None = None,
 ) -> MatchResult:
     po = papers.get("purchase_order")
     bol = papers.get("bill_of_lading")
@@ -176,6 +177,7 @@ def match_receipt(
     flag_reason = None
     unit = parsed.get("unit") or unit_po or "units"
 
+    limits = temp_limits_f or DEFAULT_COLD_CHAIN_F
     temp = parsed.get("temperature") or {}
     temp_f = _to_fahrenheit(temp.get("value"), temp.get("unit"))
     quality = parsed.get("quality")
@@ -188,11 +190,12 @@ def match_receipt(
         # The worker is looking at the pallet; that beats any document.
         status = "flagged"
         flag_reason = "worker reported the goods as damaged or spoiled"
-    elif temp_f is not None and not (COLD_CHAIN_F[0] <= temp_f <= COLD_CHAIN_F[1]):
+    elif temp_f is not None and not (limits[0] <= temp_f <= limits[1]):
         status = "flagged"
         flag_reason = (
-            f"temperature {temp.get('value')}{temp.get('unit')} is outside the "
-            f"{COLD_CHAIN_F[0]}-{COLD_CHAIN_F[1]}F holding range"
+            f"temperature {temp.get('value')}{temp.get('unit')} is outside this "
+            f"warehouse's {limits[0]}-{limits[1]}F holding range"
+            + (f" for {item}" if item else "")
         )
     elif lot_mismatch:
         # Never silently adopt the slip's lot code: traceability depends on it.

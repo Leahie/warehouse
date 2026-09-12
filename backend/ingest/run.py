@@ -371,7 +371,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             "reply": _reply_text(store, "unmatched", None, parsed),
         }
     papers = store.papers_for_po(po_id)
-    result = match_receipt(papers, parsed)
+    result = match_receipt(papers, parsed, store.temperature_limits(parsed.get("item")))
     order = store.apply_match(
         worker_id=doc.get("worker_id") or "W-17",
         voice_event_id=doc["event_id"],

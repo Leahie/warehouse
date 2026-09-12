@@ -84,13 +84,20 @@ class Store:
 
     def insert_voice_event(self, doc: dict[str, Any], actor: str = "ingest") -> dict[str, Any]:
         self.db.voice_events.update_one({"event_id": doc["event_id"]}, {"$set": doc}, upsert=True)
+        # session_id rides on every voice event so the pane can group a thread
+        # the way the browser saw it, instead of inferring threads from lot codes.
+        session_id = doc.get("session_id")
         self.emit("voice_received", "voice", actor, "voice_events", doc["event_id"], {
             "utterance": doc.get("utterance"),
             "worker_id": doc.get("worker_id"),
+            "session_id": session_id,
         })
         parsed = doc.get("parsed")
         if parsed:
-            self.emit("voice_parsed", "voice", actor, "voice_events", doc["event_id"], parsed)
+            self.emit(
+                "voice_parsed", "voice", actor, "voice_events", doc["event_id"],
+                {**parsed, "session_id": session_id},
+            )
         return doc
 
     def papers_for_po(self, po_id: str) -> dict[str, dict[str, Any] | None]:
@@ -138,6 +145,56 @@ class Store:
             self.db.voice_events.update_one(
                 {"_id": latest["_id"]}, {"$set": {"context_cleared": True}}
             )
+
+    # Shipped defaults for a new site; the warehouse overrides these.
+    DEFAULT_TEMP_LIMITS_F = (33.0, 41.0)
+
+    def temperature_limits(self, item: str | None = None) -> tuple[float, float]:
+        """This warehouse's holding range, per commodity where it has set one."""
+        doc = self.db.settings.find_one({"setting_id": "temperature"}) or {}
+        per_item = (doc.get("per_item") or {}).get((item or "").strip().casefold())
+        if per_item:
+            return (float(per_item["min_f"]), float(per_item["max_f"]))
+        if doc.get("min_f") is not None and doc.get("max_f") is not None:
+            return (float(doc["min_f"]), float(doc["max_f"]))
+        return self.DEFAULT_TEMP_LIMITS_F
+
+    def get_temperature_settings(self) -> dict[str, Any]:
+        doc = self.db.settings.find_one({"setting_id": "temperature"}, {"_id": 0})
+        if doc:
+            return doc
+        return {
+            "setting_id": "temperature",
+            "min_f": self.DEFAULT_TEMP_LIMITS_F[0],
+            "max_f": self.DEFAULT_TEMP_LIMITS_F[1],
+            "per_item": {},
+            "source": "default",
+        }
+
+    def set_temperature_settings(
+        self,
+        min_f: float | None = None,
+        max_f: float | None = None,
+        per_item: dict[str, Any] | None = None,
+        actor: str = "api",
+    ) -> dict[str, Any]:
+        current = self.get_temperature_settings()
+        doc = {
+            "setting_id": "temperature",
+            "min_f": float(min_f) if min_f is not None else current.get("min_f"),
+            "max_f": float(max_f) if max_f is not None else current.get("max_f"),
+            "per_item": {
+                k.strip().casefold(): v
+                for k, v in (per_item if per_item is not None else current.get("per_item") or {}).items()
+            },
+            "source": "warehouse",
+            "updated_at": _now(),
+        }
+        self.db.settings.update_one({"setting_id": "temperature"}, {"$set": doc}, upsert=True)
+        self.emit("settings_updated", "database", actor, "settings", "temperature", {
+            "min_f": doc["min_f"], "max_f": doc["max_f"], "per_item": doc["per_item"],
+        })
+        return {k: v for k, v in doc.items() if k != "_id"}
 
     def find_candidates(self, parsed: dict[str, Any] | None) -> list[dict[str, Any]]:
         """Purchase orders the worker might have meant, best first.

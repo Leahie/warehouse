@@ -64,6 +64,7 @@ export function VoicePage() {
   // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
   const mic = useDockMic({
     contextOrderId: currentOrderRef.current,
+    sessionId: currentIdRef.current,
     onTurn: (turn) => {
       // Keep the exchange where it started. Jumping to the order's own session
       // the moment it resolves splits one conversation across two threads and

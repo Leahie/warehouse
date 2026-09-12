@@ -135,6 +135,7 @@ async def audio(
     file: UploadFile = File(...),
     worker_id: str = Form("W-17"),
     context_order_id: str | None = Form(None),
+    session_id: str | None = Form(None),
 ):
     data = await file.read()
     if not data:
@@ -154,6 +155,9 @@ async def audio(
         "actor": "dock-mic",
         "ingest_channel": "browser_mic",
         "context_order_id": context_order_id or None,
+        # The browser owns the notion of a conversation; the server groups by it
+        # rather than inferring threads from lot codes after the fact.
+        "session_id": session_id or None,
     }
     result = ingest_voice_doc(store, doc)
     result["utterance"] = utterance
@@ -205,6 +209,27 @@ def work():
 def heartbeat():
     heartbeat_tick(store)
     return _jsonify(store.work_snapshot())
+
+
+@app.get("/api/settings/temperature")
+def get_temperature_settings():
+    return _jsonify(store.get_temperature_settings())
+
+
+class TemperatureSettingsBody(BaseModel):
+    min_f: float | None = None
+    max_f: float | None = None
+    per_item: dict[str, dict[str, float]] | None = None
+
+
+@app.put("/api/settings/temperature")
+def put_temperature_settings(body: TemperatureSettingsBody):
+    """The warehouse sets its own holding range, globally or per commodity."""
+    if body.min_f is not None and body.max_f is not None and body.min_f > body.max_f:
+        raise HTTPException(400, "min_f must not exceed max_f")
+    return _jsonify(
+        store.set_temperature_settings(body.min_f, body.max_f, body.per_item)
+    )
 
 
 @app.get("/api/shift-logs")
