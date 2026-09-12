@@ -1,51 +1,19 @@
 {
   "base": "http://127.0.0.1:8787/api",
-  "note": "Console talks to this and nothing else. Poll GET /events every 1s. after is the last seq the UI has.",
+  "note": "Console and OpenClaw talk to this only. OpenClaw never gets a Mongo URI. Poll GET /events and GET /alerts every 1s.",
   "endpoints": [
-    {
-      "method": "GET",
-      "path": "/events",
-      "query": { "after": "int seq, default 0", "pane": "voice|database|search optional" },
-      "returns": { "events": ["pipeline_events rows with seq > after"] }
-    },
-    {
-      "method": "GET",
-      "path": "/orders",
-      "returns": { "orders": ["full order docs"] }
-    },
-    {
-      "method": "GET",
-      "path": "/orders/:id",
-      "returns": {
-        "order": {},
-        "documents": ["the three papers"],
-        "voice_events": [],
-        "alerts": []
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/alerts",
-      "returns": { "alerts": ["open alerts"] }
-    },
-    {
-      "method": "POST",
-      "path": "/orders/:id/flag",
-      "body": { "reason": "string", "source": "supervisor" },
-      "does": "store.flag(order_id, flagged_by=supervisor). Emits order_flagged + alert_opened. This is the only way the website turns a row red.",
-      "forbidden": "console must not $set status itself"
-    },
-    {
-      "method": "POST",
-      "path": "/investigate",
-      "body": { "query": "string" },
-      "returns": { "investigation_id": "INV-…" },
-      "does": "starts investigate skill. Does not touch orders."
-    },
-    {
-      "method": "GET",
-      "path": "/investigations/:id",
-      "returns": "investigations document including steps[] as they append"
-    }
+    {"method": "GET", "path": "/events", "who": "console", "does": "log stream"},
+    {"method": "GET", "path": "/orders", "who": "console+agent", "does": "each object + quantities"},
+    {"method": "GET", "path": "/papers", "who": "console", "does": "on-file PO/BOL vs packing slip the worker sees"},
+    {"method": "GET", "path": "/orders/:id", "who": "console", "does": "one object + papers + voice + alerts"},
+    {"method": "GET", "path": "/alerts", "who": "console", "does": "poll red alerts"},
+    {"method": "POST", "path": "/orders/:id/flag", "who": "supervisor UI", "does": "mark invalid"},
+    {"method": "POST", "path": "/investigate", "who": "search pane", "does": "Qwen forensics"},
+    {"method": "GET", "path": "/investigations/:id", "who": "search pane", "does": "citation trail"},
+    {"method": "POST", "path": "/voice-events", "who": "OpenClaw", "does": "transcript in, matcher writes Mongo"},
+    {"method": "POST", "path": "/clarifications/:id/answer", "who": "OpenClaw", "does": "confirm -> alert, correct -> commit"},
+    {"method": "GET", "path": "/work", "who": "OpenClaw heartbeat", "does": "open clarifications + alerts without Mongo"},
+    {"method": "POST", "path": "/heartbeat", "who": "OpenClaw cron", "does": "stale flags + shift log"},
+    {"method": "GET", "path": "/shift-logs", "who": "console logs", "does": "hourly item/qty vectors"}
   ]
 }

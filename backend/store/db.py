@@ -74,6 +74,9 @@ class Store:
         self.emit("document_ingested", "database", actor, "source_documents", doc["doc_id"], {
             "doc_type": doc.get("doc_type"),
             "supplier": doc.get("supplier"),
+            "po_id": doc.get("po_id"),
+            "item": (doc.get("lines") or [{}])[0].get("item") if doc.get("lines") else None,
+            "quantity": (doc.get("lines") or [{}])[0].get("quantity") if doc.get("lines") else None,
         })
         return body
 
@@ -145,6 +148,7 @@ class Store:
             "match": {
                 "po_vs_bol": data.get("po_vs_bol"),
                 "bol_vs_slip": data.get("bol_vs_slip"),
+                "papers_vs_slip": data.get("papers_vs_slip") or data.get("bol_vs_slip"),
                 "slip_vs_voice": data.get("slip_vs_voice"),
                 "mismatches": data.get("mismatches") or [],
             },
@@ -224,9 +228,10 @@ class Store:
                     "time_process_finished": now,
                     "updated_at": now,
                 }},
+                projection={"_id": 0},
                 return_document=ReturnDocument.AFTER,
             )
-        return self.db.orders.find_one({"order_id": order_id})
+        return self.db.orders.find_one({"order_id": order_id}, {"_id": 0})
 
     def flag(self, order_id: str, *, reason: str, source: str, actor: str = "api") -> dict[str, Any]:
         now = _now()
@@ -239,6 +244,7 @@ class Store:
                 "time_process_finished": now,
                 "updated_at": now,
             }},
+            projection={"_id": 0},
             return_document=ReturnDocument.AFTER,
         )
         if not order:
@@ -265,6 +271,64 @@ class Store:
 
     def list_orders(self) -> list[dict[str, Any]]:
         return list(self.db.orders.find({}, {"_id": 0}))
+
+    def list_documents(self, doc_type: str | None = None) -> list[dict[str, Any]]:
+        query: dict[str, Any] = {}
+        if doc_type:
+            query["doc_type"] = doc_type
+        return list(self.db.source_documents.find(query, {"_id": 0}))
+
+    def list_expected_receipts(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for po in self.db.source_documents.find({"doc_type": "purchase_order"}, {"_id": 0}):
+            po_id = po.get("po_id") or po.get("doc_id")
+            papers = self.papers_for_po(po_id)
+            bol = papers.get("bill_of_lading")
+            slip = papers.get("packing_slip")
+            for line in po.get("lines") or [{}]:
+                item = line.get("item")
+                bol_line = None
+                if bol:
+                    for candidate in bol.get("lines") or []:
+                        if (candidate.get("item") or "").strip().casefold() == (item or "").strip().casefold():
+                            bol_line = candidate
+                            break
+                    bol_line = bol_line or ((bol.get("lines") or [None])[0])
+                slip_line = None
+                if slip:
+                    for candidate in slip.get("lines") or []:
+                        if (candidate.get("item") or "").strip().casefold() == (item or "").strip().casefold():
+                            slip_line = candidate
+                            break
+                    slip_line = slip_line or ((slip.get("lines") or [None])[0])
+                order = self.db.orders.find_one(
+                    {"po_id": po_id, "item": item},
+                    {"_id": 0},
+                ) or self.db.orders.find_one({"po_id": po_id}, {"_id": 0})
+                qty_po = line.get("quantity")
+                qty_bol = (bol_line or {}).get("quantity")
+                qty_slip = (slip_line or {}).get("quantity")
+                rows.append({
+                    "po_id": po_id,
+                    "bol_id": (bol or {}).get("doc_id"),
+                    "slip_id": (slip or {}).get("doc_id"),
+                    "supplier": po.get("supplier"),
+                    "item": item,
+                    "sku": line.get("sku"),
+                    "quantity_po": qty_po,
+                    "quantity_bol": qty_bol,
+                    "quantity_slip": qty_slip,
+                    "po_vs_bol": "match" if qty_po == qty_bol else ("missing" if qty_bol is None else "mismatch"),
+                    "papers_vs_slip": (
+                        "missing" if qty_slip is None else ("match" if qty_po == qty_slip else "mismatch")
+                    ),
+                    "order_id": (order or {}).get("order_id"),
+                    "status": (order or {}).get("status"),
+                    "quantity_received": (order or {}).get("quantity_received"),
+                    "quantity_expected": (order or {}).get("quantity_expected") or qty_po,
+                    "flag_reason": (order or {}).get("flag_reason"),
+                })
+        return rows
 
     def get_order(self, order_id: str) -> dict[str, Any] | None:
         order = self.db.orders.find_one({"order_id": order_id}, {"_id": 0})
@@ -331,3 +395,40 @@ class Store:
 
     def get_investigation(self, investigation_id: str) -> dict[str, Any] | None:
         return self.db.investigations.find_one({"investigation_id": investigation_id}, {"_id": 0})
+
+    def list_open_clarifications(self) -> list[dict[str, Any]]:
+        rows = list(self.db.clarifications.find({"status": "open"}, {"_id": 0}))
+        for row in rows:
+            for key in ("asked_at", "answered_at"):
+                if hasattr(row.get(key), "isoformat"):
+                    row[key] = row[key].isoformat()
+        return rows
+
+    def list_shift_logs(self) -> list[dict[str, Any]]:
+        rows = list(self.db.shift_logs.find({}, {"_id": 0}).sort("hour_start", -1))
+        for row in rows:
+            for key in ("hour_start", "hour_end"):
+                if hasattr(row.get(key), "isoformat"):
+                    row[key] = row[key].isoformat()
+            for event in row.get("events") or []:
+                if hasattr(event.get("t"), "isoformat"):
+                    event["t"] = event["t"].isoformat()
+        return rows
+
+    def work_snapshot(self) -> dict[str, Any]:
+        pending = [
+            {
+                "order_id": o.get("order_id"),
+                "item": o.get("item"),
+                "status": o.get("status"),
+                "quantity_received": o.get("quantity_received"),
+                "quantity_expected": o.get("quantity_expected"),
+            }
+            for o in self.list_orders()
+            if o.get("status") in {"pending_clarification", "pending_match", "flagged"}
+        ]
+        return {
+            "open_clarifications": self.list_open_clarifications(),
+            "alerts": self.list_alerts(),
+            "pending_orders": pending,
+        }

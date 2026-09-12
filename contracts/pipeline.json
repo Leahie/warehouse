@@ -90,7 +90,7 @@
     "6. later answer event → matcher again → committed or flagged",
     "7. if flagged: store.flag → alerts row + emit order_flagged, alert_opened",
     "8. heartbeat every N min compiles shift_logs; may flag stale clarifications",
-    "9. frontend poll GET /events paints panes 1 and 2",
+    "9. frontend poll GET /events, GET /orders, GET /alerts paints panes 1 and 2",
     "10. search is a side door: POST /investigate → steps append → pane 3"
   ]
 }

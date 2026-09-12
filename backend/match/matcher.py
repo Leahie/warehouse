@@ -1,4 +1,4 @@
-"""Pure three-way match. No IO, no Mongo, no HTTP."""
+"""Pure match: office papers (PO + BOL) vs what the worker sees (packing slip)."""
 
 from __future__ import annotations
 
@@ -61,6 +61,7 @@ class MatchResult:
     quantity_received: Any
     po_vs_bol: str
     bol_vs_slip: str
+    papers_vs_slip: str
     slip_vs_voice: str
     mismatches: list[dict[str, Any]] = field(default_factory=list)
     suggested_status: str = "committed"
@@ -82,6 +83,7 @@ class MatchResult:
             "quantity_received": self.quantity_received,
             "po_vs_bol": self.po_vs_bol,
             "bol_vs_slip": self.bol_vs_slip,
+            "papers_vs_slip": self.papers_vs_slip,
             "slip_vs_voice": self.slip_vs_voice,
             "mismatches": self.mismatches,
             "suggested_status": self.suggested_status,
@@ -109,6 +111,8 @@ def match_receipt(
     qty_bol = (bol_line or {}).get("quantity")
     qty_slip = (slip_line or {}).get("quantity")
     qty_voice = parsed.get("quantity")
+    # Packing slip is what the worker sees. Voice is them reading it.
+    qty_dock = qty_slip if qty_slip is not None else qty_voice
 
     unit_po = (po_line or {}).get("unit")
     item_po = (po_line or {}).get("item")
@@ -118,15 +122,16 @@ def match_receipt(
     lot_voice = parsed.get("lot_code")
 
     qty_pair_po_bol = _cell(qty_po, qty_bol)
-    qty_pair_bol_slip = _cell(qty_bol, qty_slip)
-    qty_pair_slip_voice = _cell(qty_slip, qty_voice)
+    qty_pair_papers_slip = _cell(qty_po, qty_dock)
+    qty_pair_slip_voice = _cell(qty_slip, qty_voice) if qty_slip is not None else _cell(qty_dock, qty_voice)
 
-    # Papers-vs-papers for identity fields that all three should share.
     item_po_bol = _cell(item_po, (bol_line or {}).get("item"))
     supplier_po_bol = _cell((po or {}).get("supplier"), (bol or {}).get("supplier"))
 
     mismatches: list[dict[str, Any]] = []
-    if qty_pair_po_bol == "mismatch" or qty_pair_bol_slip == "mismatch" or qty_pair_slip_voice == "mismatch":
+    if qty_pair_po_bol == "mismatch" or qty_pair_papers_slip == "mismatch":
+        mismatches.append(_field(qty_po, qty_bol, qty_dock, qty_voice, "quantity"))
+    elif qty_pair_slip_voice == "mismatch":
         mismatches.append(_field(qty_po, qty_bol, qty_slip, qty_voice, "quantity"))
     if item_po_bol == "mismatch":
         mismatches.append(
@@ -145,25 +150,32 @@ def match_receipt(
     if lot_slip and lot_voice and _norm(lot_slip) != _norm(lot_voice):
         mismatches.append(_field(None, None, lot_slip, lot_voice, "lot_code"))
 
-    voice_qty_off = qty_pair_slip_voice == "mismatch" or (
-        qty_po is not None and qty_voice is not None and _norm(qty_po) != _norm(qty_voice)
-    )
-    papers_broken = qty_pair_po_bol == "mismatch" or qty_pair_bol_slip == "mismatch"
+    office_broken = qty_pair_po_bol == "mismatch" or item_po_bol == "mismatch" or supplier_po_bol == "mismatch"
+    dock_vs_office = qty_pair_papers_slip == "mismatch"
+    misread_slip = qty_slip is not None and qty_pair_slip_voice == "mismatch"
 
     question = None
     kind = None
     status = "committed"
     flag_reason = None
+    unit = parsed.get("unit") or unit_po or "units"
 
-    if papers_broken:
+    if office_broken:
         status = "flagged"
-        flag_reason = "three-way paper mismatch"
-    elif voice_qty_off:
+        flag_reason = "purchase order and bill of lading disagree"
+    elif misread_slip:
         status = "pending_clarification"
         kind = "quantity"
         question = (
-            f"You said {qty_voice} {parsed.get('unit') or unit_po or 'units'}, "
-            f"the PO expected {qty_po} — can you confirm the count?"
+            f"You said {qty_voice} {unit}, the packing slip shows {qty_slip} — "
+            "which number is on the slip?"
+        )
+    elif dock_vs_office:
+        status = "pending_clarification"
+        kind = "quantity"
+        question = (
+            f"Packing slip shows {qty_dock} {unit} of {item or item_po or 'this item'}; "
+            f"PO and bill of lading say {qty_po}. Can you confirm the count?"
         )
     elif parsed.get("temperature") and not (parsed.get("temperature") or {}).get("unit"):
         status = "pending_clarification"
@@ -180,9 +192,10 @@ def match_receipt(
         supplier=supplier,
         lot_code=lot_voice or lot_slip,
         quantity_expected=qty_po,
-        quantity_received=qty_voice,
+        quantity_received=qty_dock,
         po_vs_bol="mismatch" if qty_pair_po_bol == "mismatch" else qty_pair_po_bol,
-        bol_vs_slip="mismatch" if qty_pair_bol_slip == "mismatch" else qty_pair_bol_slip,
+        bol_vs_slip="mismatch" if qty_pair_papers_slip == "mismatch" else qty_pair_papers_slip,
+        papers_vs_slip="mismatch" if qty_pair_papers_slip == "mismatch" else qty_pair_papers_slip,
         slip_vs_voice="mismatch" if qty_pair_slip_voice == "mismatch" else qty_pair_slip_voice,
         mismatches=mismatches,
         suggested_status=status,

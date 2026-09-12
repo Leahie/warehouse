@@ -29,11 +29,23 @@ header p {
   padding: 16px;
   min-height: 420px;
 }
-.pane h2 {
+.pane h2,
+.pane h3 {
   margin: 0 0 12px;
   font-size: 14px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+.pane h3 {
+  margin-top: 16px;
+}
+.alert-banner {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: #f8d7da;
+  border: 1px solid #f1aeb5;
+  border-radius: 6px;
+  font-size: 13px;
 }
 table {
   width: 100%;

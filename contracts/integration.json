@@ -41,8 +41,8 @@
     },
     {
       "from": "OpenClaw heartbeat (after NemoClaw onboard)",
-      "via": "skill: list inbox, call matcher tools, write report",
-      "to": "same Mongo. Do not give OpenClaw a second database."
+      "via": "skill curls GET /api/work, POST /api/heartbeat, POST /api/voice-events",
+      "to": "same Mongo. Do not give OpenClaw a Mongo URI."
     }
   ],
   "on_box_now": {

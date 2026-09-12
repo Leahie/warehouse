@@ -8,7 +8,7 @@
     "backend/ingest/": "folder watcher → store",
     "backend/heartbeat/": "cron → store",
     "backend/investigate/": "search skill → investigations",
-    "backend/api/": "FastAPI. only process console may call.",
+    "backend/api/": "FastAPI. console and OpenClaw call this. OpenClaw never gets a Mongo URI.",
     "console/": "one web app, three panes. talks only to /api."
   },
   "write_owners": {
@@ -39,7 +39,7 @@
     },
     "database": {
       "shows": "objects appearing in Mongo, with flagged/invalid rows painted red",
-      "reads": "GET /api/orders and GET /api/events?pane=database",
+      "reads": "GET /api/papers, GET /api/orders, GET /api/alerts, and GET /api/events?pane=database",
       "red_when": "orders.status == flagged OR an open alert on that order_id. Red is a CSS class, not a fourth backend.",
       "kinds": [
         "document_ingested",

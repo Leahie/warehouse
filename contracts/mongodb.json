@@ -32,7 +32,7 @@
       }
     },
     "source_documents": {
-      "purpose": "The three papers that must agree: PO (paid for), bill of lading (agreed to send), packing slip (what was sent). Join on po_id.",
+      "purpose": "Office papers live here before the truck: purchase_order and bill_of_lading. packing_slip is dock-time — what the worker is actually looking at — and is compared against those two. Join on po_id.",
       "unique": ["doc_id"],
       "indexes": [
         ["doc_id", { "unique": true }],

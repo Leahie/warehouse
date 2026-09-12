@@ -6,6 +6,7 @@ import json
 import re
 import sys
 import time
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +50,32 @@ def _mark(path: Path) -> None:
     dest.write_text(path.read_text())
 
 
+def ingest_voice_doc(store: Store, doc: dict) -> dict:
+    parsed = doc.get("parsed") or crude_parse(doc.get("utterance") or "")
+    if doc.get("in_reply_to") and not parsed.get("in_reply_to"):
+        parsed["in_reply_to"] = doc["in_reply_to"]
+    doc["parsed"] = parsed
+    if not doc.get("event_id"):
+        doc["event_id"] = f"EVT-{uuid.uuid4().hex[:8].upper()}"
+    store.insert_voice_event(doc, actor=doc.get("actor") or "ingest")
+    reply_to = parsed.get("in_reply_to")
+    if reply_to:
+        order = store.answer_clarification(reply_to, doc, actor=doc.get("actor") or "ingest")
+        return {"event_id": doc["event_id"], "order": order, "mode": "clarification_answer"}
+    po_id = store.find_po_id(parsed)
+    if not po_id:
+        return {"event_id": doc["event_id"], "order": None, "mode": "unmatched"}
+    papers = store.papers_for_po(po_id)
+    result = match_receipt(papers, parsed)
+    order = store.apply_match(
+        worker_id=doc.get("worker_id") or "W-17",
+        voice_event_id=doc["event_id"],
+        result=result,
+        actor=doc.get("actor") or "ingest",
+    )
+    return {"event_id": doc["event_id"], "order": order, "mode": "receive"}
+
+
 def ingest_path(store: Store, path: Path) -> None:
     if path.suffix != ".json":
         return
@@ -58,32 +85,23 @@ def ingest_path(store: Store, path: Path) -> None:
         _mark(path)
         return
     if path.parent.name == "docs":
-        store.insert_document(doc)
+        actor = "dock" if doc.get("doc_type") == "packing_slip" else "office"
+        store.insert_document(doc, actor=actor)
+        _mark(path)
+        return
+    if path.parent.name == "slips":
+        store.insert_document(doc, actor="dock")
         _mark(path)
         return
     if path.parent.name == "voice":
-        parsed = doc.get("parsed") or crude_parse(doc.get("utterance") or "")
-        doc["parsed"] = parsed
-        store.insert_voice_event(doc)
-        reply_to = parsed.get("in_reply_to")
-        if reply_to:
-            store.answer_clarification(reply_to, doc)
-            _mark(path)
-            return
-        po_id = store.find_po_id(parsed)
-        if not po_id:
-            _mark(path)
-            return
-        papers = store.papers_for_po(po_id)
-        result = match_receipt(papers, parsed)
-        store.apply_match(worker_id=doc.get("worker_id"), voice_event_id=doc["event_id"], result=result)
+        ingest_voice_doc(store, doc)
         _mark(path)
 
 
 def drain_once(store: Store | None = None) -> int:
     store = store or Store()
     count = 0
-    for folder in ("workers", "docs", "voice"):
+    for folder in ("workers", "docs", "slips", "voice"):
         directory = INBOX / folder
         if not directory.exists():
             continue

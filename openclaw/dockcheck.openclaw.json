@@ -1,0 +1,14 @@
+{
+  "name": "dockcheck-openclaw",
+  "note": "Copy or symlink openclaw/skills/dockcheck into the OpenClaw skills path. Agent talks only to DOCKCHECK_API. Brain is local vLLM, not api.openai.com.",
+  "env": {
+    "DOCKCHECK_API": "http://127.0.0.1:8787/api",
+    "OPENAI_BASE_URL": "http://127.0.0.1:8080/v1",
+    "OPENAI_API_KEY": "local"
+  },
+  "heartbeat": {
+    "every": "3m",
+    "skill": "dockcheck",
+    "actions": ["GET /work", "POST /heartbeat"]
+  }
+}

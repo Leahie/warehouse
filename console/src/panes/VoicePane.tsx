@@ -16,6 +16,7 @@ export function VoicePane() {
                   event.payload.item ||
                   event.entity_id,
               )}
+              {event.payload.quantity != null ? ` · qty ${String(event.payload.quantity)}` : ""}
             </span>
           </li>
         ))}

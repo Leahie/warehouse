@@ -8,7 +8,7 @@ export function App() {
     <main>
       <header>
         <h1>DockCheck</h1>
-        <p>Local receiving clerk. UI paints Mongo. It does not compute matches.</p>
+        <p>On file: PO + bill of lading. On the dock: packing slip the worker is looking at.</p>
       </header>
       <div className="grid">
         <VoicePane />
