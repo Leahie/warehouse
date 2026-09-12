@@ -243,12 +243,25 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
         (a, b) => a.seq - b.seq,
       );
       const last = ordered[ordered.length - 1];
-      const messages: ChatMessage[] = ordered.map((e) => ({
-        id: `${e.seq}`,
-        role: ROLE_BY_KIND[e.kind] ?? "system",
-        text: textOf(e),
-        at: e.t,
-      }));
+      // The same line is often emitted more than once -- a clarification is
+      // re-asked on each attempt, and an answer arrives as both voice_received
+      // and answer_received. Collapse repeats so the transcript reads like the
+      // exchange that actually happened.
+      // One spoken line produces several events -- an answer is recorded as both
+      // voice_received and answer_received, a clarification is re-asked on every
+      // attempt -- so the raw stream repeats itself. Keep the first occurrence of
+      // each distinct line per speaker and the transcript reads like the exchange
+      // that actually happened.
+      const messages: ChatMessage[] = [];
+      const seen = new Set<string>();
+      for (const e of ordered) {
+        const role = ROLE_BY_KIND[e.kind] ?? "system";
+        const text = textOf(e);
+        const fingerprint = `${role}:${text.trim().toLowerCase()}`;
+        if (seen.has(fingerprint)) continue;
+        seen.add(fingerprint);
+        messages.push({ id: `${e.seq}`, role, text, at: e.t });
+      }
       // A session key may be a bare order id, a VS- prefixed one, or a browser
       // scratch id. Resolve it back to a real order however it arrived, and fall
       // back to an order id carried on the events themselves.
