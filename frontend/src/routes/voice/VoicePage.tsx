@@ -7,7 +7,7 @@ import { StageChip } from "@/components/voice/StageChip";
 import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
 import type { AlertCard } from "@/types/alert";
 import type { ChatMessage, VoiceSession } from "@/types/voice";
-import { useVoiceSessions } from "@/api/useLiveData";
+import { useAlerts, useVoiceSessions } from "@/api/useLiveData";
 import { useDockMic } from "@/audio/useDockMic";
 import { speechSupported, stopSpeaking } from "@/audio/speak";
 
@@ -31,7 +31,7 @@ function blankScratch(id: string = newScratchId()): VoiceSession {
     messages: [],
   };
 }
-const alerts = alertsData as AlertCard[];
+const fallbackAlerts = alertsData as AlertCard[];
 
 export function VoicePage() {
   const [searchParams] = useSearchParams();
@@ -54,6 +54,10 @@ export function VoicePage() {
   // conversation reached from an alert.
   const pinnedId = routeSessionId ?? searchParams.get("order") ?? selectedId;
   const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions, pinnedId);
+  // The placeholder describes an alert, so it has to describe the live one --
+  // reading the bundled fixture reported a reason the database never held.
+  const { data: liveAlerts } = useAlerts(fallbackAlerts);
+  const alerts: AlertCard[] = liveAlerts.length ? liveAlerts : fallbackAlerts;
 
   const sessions = useMemo(() => {
     const liveIds = new Set(liveSessions.map((s) => s.session_id));
@@ -145,6 +149,10 @@ export function VoicePage() {
     const key = `${sessionParam ?? ""}|${orderParam ?? ""}`;
     if (key === "|") return;
     if (appliedDeepLink.current === key) return;
+    // The first render happens before any conversation has arrived. Deciding
+    // then that none exists writes the placeholder and marks the link handled,
+    // so the real thread never gets a chance -- the fallback always won the race.
+    if (isLoading) return;
 
     if (sessionParam) {
       const match = sessions.find((s) => s.session_id === sessionParam);
@@ -169,7 +177,7 @@ export function VoicePage() {
       // the worker saying what they counted and the agent questioning it. Only
       // when no exchange was ever recorded do we fall back to a placeholder, and
       // it says so rather than presenting itself as the conversation.
-      const alert = alerts.find((a) => a.order_id === orderParam);
+      const alert = alerts.find((a: AlertCard) => a.order_id === orderParam);
       if (alert) {
         const placeholder: VoiceSession = {
           session_id: `VS-ALERT-${alert.alert_id}`,

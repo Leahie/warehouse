@@ -327,7 +327,15 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
     // only clutter the log. A conversation in progress in the browser lives in
     // local state, so nothing live is lost here.
     .filter((session): session is VoiceSession => session !== null && !!session.order_id)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    // Order by the last thing said, not the first. A thread groups every
+    // utterance about a receipt, so a seeded event from a previous day can sit
+    // at the head of a conversation someone is having right now -- sorting on
+    // the start date buries the live exchange behind day-old ones.
+    .sort((a, b) => {
+      const last = (s: VoiceSession) =>
+        s.messages.length ? s.messages[s.messages.length - 1].at : s.created_at;
+      return last(b).localeCompare(last(a));
+    });
 }
 
 // ---- logs -----------------------------------------------------------------
