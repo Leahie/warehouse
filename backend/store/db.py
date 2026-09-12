@@ -103,6 +103,42 @@ class Store:
             out[doc.get("doc_type")] = doc
         return out
 
+    # How far back an unresolved utterance still counts as part of the same
+    # exchange. Long enough for a worker to think, short enough that the next
+    # pallet does not inherit the last one's details.
+    PENDING_WINDOW_S = 180
+
+    def pending_context(self, worker_id: str) -> list[dict[str, Any]]:
+        """Parsed fields from this worker's recent utterances that never resolved."""
+        cutoff = _now().timestamp() - self.PENDING_WINDOW_S
+        out: list[dict[str, Any]] = []
+        for event in (
+            self.db.voice_events.find({"worker_id": worker_id}, {"_id": 0})
+            .sort("_id", -1)
+            .limit(8)
+        ):
+            received = event.get("received_at")
+            if hasattr(received, "timestamp") and received.timestamp() < cutoff:
+                break
+            if event.get("context_cleared"):
+                break
+            parsed = event.get("parsed") or {}
+            if parsed:
+                out.append(parsed)
+        return out
+
+    def clear_pending_context(self, worker_id: str | None) -> None:
+        """Mark the trail consumed, so the next receipt starts clean."""
+        if not worker_id:
+            return
+        latest = self.db.voice_events.find_one(
+            {"worker_id": worker_id}, {"_id": 1}, sort=[("_id", -1)]
+        )
+        if latest:
+            self.db.voice_events.update_one(
+                {"_id": latest["_id"]}, {"$set": {"context_cleared": True}}
+            )
+
     def find_candidates(self, parsed: dict[str, Any] | None) -> list[dict[str, Any]]:
         """Purchase orders the worker might have meant, best first.
 

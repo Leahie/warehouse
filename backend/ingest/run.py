@@ -88,7 +88,15 @@ def crude_parse(utterance: str) -> dict:
     # "receiving 42 cases of cauliflower" and the bare "42 cases of cauliflower"
     item = re.search(r"\d+\s+(?:cases?|pallets?|units?|boxes?|box)\s+of\s+([A-Za-z]+)", text, re.I)
     if not item:
-        item = re.search(r"(?:receiving|received|got|unloading)\s+(?:\d+\s+\w+\s+of\s+)?([A-Za-z]+)", text, re.I)
+        item = re.search(
+            r"(?:receiving|received|got|unloading|here'?s|this is)\s+"
+            # "I got some broccoli" -- skip determiners and filler, or the item
+            # comes back as "some".
+            r"(?:(?:some|a|an|the|my|this|that|these|those|like|just|uh|um)\s+)*"
+            r"(?:\d+\s+\w+\s+of\s+)?([A-Za-z]+)",
+            text,
+            re.I,
+        )
 
     def clean(value: str | None) -> str | None:
         if not value:
@@ -121,6 +129,28 @@ def _mark(path: Path) -> None:
     if dest.exists():
         return
     dest.write_text(path.read_text())
+
+
+# Fields worth remembering between turns while an order is still unidentified.
+CARRY_FIELDS = ("item", "quantity", "unit", "lot_code", "supplier", "sku", "po_id")
+
+
+def _merge_pending(store: Store, worker_id: str | None, parsed: dict) -> dict:
+    """Fold in detail from this worker's recent unresolved utterances.
+
+    A dock worker volunteers one fact at a time -- "I got 60 cases of lemons",
+    then "they're from Sunridge Organics". Either alone matches several orders;
+    together they are unique. Treating each utterance as a fresh start throws
+    away the half of the identification the worker already gave.
+    """
+    if not worker_id:
+        return parsed
+    merged = dict(parsed)
+    for prior in store.pending_context(worker_id):
+        for field in CARRY_FIELDS:
+            if merged.get(field) in (None, "") and prior.get(field) not in (None, ""):
+                merged[field] = prior[field]
+    return merged
 
 
 def _offer_text(parsed: dict, candidates: list[dict]) -> str:
@@ -209,6 +239,8 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             "event_id": doc["event_id"], "order": order, "mode": "clarification_answer",
             "reply": _reply_text(store, "clarification_answer", order, parsed),
         }
+    parsed = _merge_pending(store, doc.get("worker_id"), parsed)
+    doc["parsed"] = parsed
     candidates = store.find_candidates(parsed)
     po_id, offer = decide(candidates)
     if not po_id:
@@ -231,6 +263,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         result=result,
         actor=doc.get("actor") or "ingest",
     )
+    store.clear_pending_context(doc.get("worker_id"))
     return {
         "event_id": doc["event_id"], "order": order, "mode": "receive",
         "reply": _reply_text(store, "receive", order, parsed),
