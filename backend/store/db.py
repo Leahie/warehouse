@@ -317,7 +317,9 @@ class Store:
         self.emit("answer_received", "voice", actor, "voice_events", event.get("event_id"), {
             "intent": intent,
             "utterance": event.get("utterance"),
-            "order_id": clq["order_id"],
+            # Without this the answer lands outside the conversation it answered.
+            "session_id": event.get("session_id"),
+            "order_id": clq.get("order_id"),
         })
         order_id = clq["order_id"]
         if event.get("event_id"):
