@@ -35,9 +35,9 @@ function resolveName(input: string) {
 }
 
 export function LogsPage() {
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
-  const [mode, setMode] = useState<LogsMode | null>(null);
+  const [start, setStart] = useState("2026-09-10");
+  const [end, setEnd] = useState("2026-09-12");
+  const [mode, setMode] = useState<LogsMode | null>("multiple");
   const [names, setNames] = useState(["Fresh Farms", "Berry Grove Co"]);
 
   const { bars, error } = useMemo(() => {
@@ -66,11 +66,12 @@ export function LogsPage() {
       return {
         bars: nextBars,
         error: missing.length
-          ? `No orders found for ${missing.join(", ")}.`
+          ? `Unknown manufacturer: ${missing.join(", ")}. Available: ${Object.keys(data.manufacturers).join(", ")}`
           : null,
       };
     }
 
+    // Single mode
     const name = resolveName(names[0] ?? "");
     if (!name) {
       return {
@@ -92,55 +93,88 @@ export function LogsPage() {
     };
   }, [mode, start, end, names]);
 
-  function onAddManufacturer() {
-    const next = window.prompt("Manufacturer name to compare", "GreenLeaf Produce");
-    if (!next?.trim()) return;
-    const resolved = resolveName(next);
+  function handleAddManufacturer(manufacturerToAdd: string) {
+    const resolved = resolveName(manufacturerToAdd);
     if (!resolved) return;
     if (names.includes(resolved)) return;
     setNames((prev) => [...prev, resolved]);
   }
 
+  const allManufacturerKeys = Object.keys(data.manufacturers);
+  const availableToAdd = allManufacturerKeys.filter((m) => !names.includes(m));
+
   return (
-    <section className="page-pad flex min-h-0 flex-1 flex-col gap-4">
-      <h1 className="text-h1-default text-primary m-0">Logs</h1>
+    <section className="page-pad flex min-h-0 flex-1 flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-h1-default text-primary m-0">Logs</h1>
+          <p className="text-body3-default text-tertiary mt-1 mb-0">
+            Compare receiving volumes and quality ratios across manufacturers or over time.
+          </p>
+        </div>
+      </div>
 
       {mode === "multiple" || mode === "single" ? (
-        <div className="flex flex-wrap gap-3">
-          {(mode === "multiple" ? names : names.slice(0, 1)).map((name, index) => (
-            <label key={`${name}-${index}`} className="flex flex-col gap-1">
-              <span className="text-body3-default text-tertiary">
-                {mode === "multiple" ? `Company ${String.fromCharCode(65 + index)}` : "Manufacturer"}
-              </span>
-              <input
-                className="border-core text-body2-default rounded-small border px-3 py-2"
-                value={name}
-                list="manufacturer-options"
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setNames((prev) => {
-                    const copy = [...prev];
-                    copy[index] = value;
-                    return copy;
-                  });
-                }}
-              />
-            </label>
-          ))}
-          <datalist id="manufacturer-options">
-            {Object.keys(data.manufacturers).map((name) => (
-              <option key={name} value={name} />
+        <div className="card-surface p-4">
+          <div className="text-body3-default text-tertiary uppercase tracking-wider font-semibold mb-2">
+            {mode === "multiple" ? "Compare Manufacturers" : "Selected Manufacturer"}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {(mode === "multiple" ? names : names.slice(0, 1)).map((name, index) => (
+              <div key={`${name}-${index}`} className="flex items-center gap-2 rounded-small border border-core bg-core-surface-ii/60 px-3 py-1.5">
+                <span className="text-body3-default font-semibold text-secondary">
+                  {mode === "multiple" ? `Company ${String.fromCharCode(65 + index)}:` : "Company:"}
+                </span>
+                <input
+                  className="border-core text-body2-default rounded-small border bg-core-surface px-2.5 py-1 text-primary focus:border-brand-green focus:outline-none"
+                  value={name}
+                  list="manufacturer-options"
+                  placeholder="Manufacturer name…"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNames((prev) => {
+                      const copy = [...prev];
+                      copy[index] = value;
+                      return copy;
+                    });
+                  }}
+                />
+                {mode === "multiple" && names.length > 2 ? (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${name}`}
+                    className="text-tertiary hover:text-negative text-xs px-1"
+                    onClick={() => {
+                      setNames((prev) => prev.filter((_, i) => i !== index));
+                    }}
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </div>
             ))}
-          </datalist>
+            <datalist id="manufacturer-options">
+              {allManufacturerKeys.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </div>
         </div>
       ) : null}
 
-      {error ? <p className="text-body2-default text-negative m-0">{error}</p> : null}
+      {error ? (
+        <div className="rounded-small border border-negative/30 bg-alert-wash px-4 py-2 text-body2-default text-negative">
+          {error}
+        </div>
+      ) : null}
 
       <LogsChart
         bars={bars}
+        mode={mode}
+        singleManufacturerName={resolveName(names[0] ?? "") ?? names[0]}
         showAdd={mode === "multiple" && bars.length > 0}
-        onAdd={onAddManufacturer}
+        onAddManufacturer={handleAddManufacturer}
+        availableManufacturers={availableToAdd}
       />
 
       <TimeRangeControls

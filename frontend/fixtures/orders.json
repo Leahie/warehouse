@@ -9,6 +9,7 @@
     "quality": "good",
     "supplier": "Fresh Farms",
     "lot_code": "R2298",
+    "industry": "Fresh Produce & Greens",
     "status": "flagged",
     "flagged_by": "worker_confirm"
   },
@@ -22,6 +23,7 @@
     "quality": "good",
     "supplier": "Berry Grove Co",
     "lot_code": "S4410",
+    "industry": "Berries & Soft Fruits",
     "status": "flagged",
     "flagged_by": "heartbeat"
   },
@@ -35,6 +37,7 @@
     "quality": "good",
     "supplier": "GreenLeaf Produce",
     "lot_code": "P1188",
+    "industry": "Fresh Produce & Greens",
     "status": "committed",
     "flagged_by": null
   },
@@ -48,6 +51,7 @@
     "quality": "fair",
     "supplier": "Fresh Farms",
     "lot_code": "K3302",
+    "industry": "Fresh Produce & Greens",
     "status": "pending_clarification",
     "flagged_by": null
   },
@@ -61,6 +65,7 @@
     "quality": "good",
     "supplier": "Berry Grove Co",
     "lot_code": "A8801",
+    "industry": "Tropical & Specialty Produce",
     "status": "committed",
     "flagged_by": null
   },
@@ -74,6 +79,7 @@
     "quality": "good",
     "supplier": "CoolChain Farms",
     "lot_code": "T5510",
+    "industry": "Cold Chain & Greenhouse",
     "status": "flagged",
     "flagged_by": "three_way_mismatch"
   },
@@ -87,6 +93,7 @@
     "quality": null,
     "supplier": "GreenLeaf Produce",
     "lot_code": "P1170",
+    "industry": "Fresh Produce & Greens",
     "status": "pending_clarification",
     "flagged_by": null
   },
@@ -100,6 +107,7 @@
     "quality": "good",
     "supplier": "Fresh Farms",
     "lot_code": "R2201",
+    "industry": "Fresh Produce & Greens",
     "status": "committed",
     "flagged_by": null
   }

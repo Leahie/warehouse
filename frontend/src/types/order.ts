@@ -14,6 +14,7 @@ export type OrderRow = {
   quality: string | null;
   supplier: string;
   lot_code: string;
+  industry?: string;
   status: OrderStatus;
   flagged_by?: string | null;
 };

@@ -1,11 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import voiceData from "@/assets/data/voice_sessions.json";
+import alertsData from "@/assets/data/alerts.json";
 import { ChatBubble } from "@/components/voice/ChatBubble";
 import { StageChip } from "@/components/voice/StageChip";
 import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
+import type { AlertCard } from "@/types/alert";
 import type { VoiceSession } from "@/types/voice";
 
 const seedSessions = voiceData as VoiceSession[];
+const alerts = alertsData as AlertCard[];
 
 function newBlankSession(): VoiceSession {
   return {
@@ -16,13 +20,13 @@ function newBlankSession(): VoiceSession {
     summary: null,
     messages: [
       {
-        id: "sys-1",
+        id: `sys-${Date.now()}`,
         role: "system",
         text: "Parsing…",
         at: new Date().toISOString(),
       },
       {
-        id: "user-speaking",
+        id: `user-speaking-${Date.now()}`,
         role: "user",
         text: "…",
         state: "speaking",
@@ -33,15 +37,67 @@ function newBlankSession(): VoiceSession {
 }
 
 export function VoicePage() {
+  const [searchParams] = useSearchParams();
   const [sessions, setSessions] = useState<VoiceSession[]>(seedSessions);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const activeId = useMemo(() => {
+  // Sync with query params (?order=... or ?session=...)
+  useEffect(() => {
+    const orderParam = searchParams.get("order");
+    const sessionParam = searchParams.get("session");
+
+    if (sessionParam) {
+      const match = sessions.find((s) => s.session_id === sessionParam);
+      if (match) {
+        setSelectedId(match.session_id);
+        return;
+      }
+    }
+
+    if (orderParam) {
+      const match = sessions.find((s) => s.order_id === orderParam);
+      if (match) {
+        setSelectedId(match.session_id);
+        return;
+      }
+
+      // If the alert exists in alerts.json but wasn't in seed sessions, dynamically create it
+      const alert = alerts.find((a) => a.order_id === orderParam);
+      if (alert) {
+        const created: VoiceSession = {
+          session_id: `VS-ALERT-${alert.alert_id}`,
+          stage: "done",
+          is_alert: true,
+          order_id: alert.order_id,
+          created_at: alert.created_at,
+          summary: `Alert (${alert.reason}): ${alert.lot_code} · ${alert.supplier}`,
+          messages: [
+            {
+              id: `m-init-${Date.now()}`,
+              role: "system",
+              text: "Logging data…",
+              at: alert.created_at,
+            },
+            {
+              id: `m-agent-${Date.now()}`,
+              role: "agent",
+              text: `Alert Record [${alert.alert_id}]: ${alert.reason}. ${alert.ai_summary}`,
+              at: alert.created_at,
+            },
+          ],
+        };
+        setSessions((prev) => [created, ...prev]);
+        setSelectedId(created.session_id);
+      }
+    }
+  }, [searchParams, sessions]);
+
+  const activeLiveId = useMemo(() => {
     const live = sessions.find((s) => s.stage !== "done");
     return live?.session_id ?? sessions[0]?.session_id ?? null;
   }, [sessions]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const currentId = selectedId ?? activeId;
+  const currentId = selectedId ?? activeLiveId;
   const current = sessions.find((s) => s.session_id === currentId) ?? null;
 
   function playDemoStep() {
@@ -120,7 +176,6 @@ export function VoicePage() {
           };
         }
 
-        // logging_data -> done + open next
         const summary =
           "24 flats strawberries, lot S4410, Berry Grove — slip mismatch noted, worker confirmed 24.";
         return {
@@ -141,7 +196,6 @@ export function VoicePage() {
       }),
     );
 
-    // After finishing, append a fresh chat if needed
     setSessions((prev) => {
       const currentSession = prev.find((s) => s.session_id === current.session_id);
       if (currentSession?.stage === "done" && !prev.some((s) => s.stage !== "done")) {
@@ -155,7 +209,7 @@ export function VoicePage() {
 
   function startNextLog() {
     const blank = newBlankSession();
-    setSessions((prev) => [...prev, blank]);
+    setSessions((prev) => [blank, ...prev]);
     setSelectedId(blank.session_id);
   }
 
@@ -169,21 +223,37 @@ export function VoicePage() {
 
       <div className="page-pad flex min-w-0 flex-1 flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-h1-default text-primary m-0">Voice Visualizer</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-h1-default text-primary m-0">Voice Visualizer</h1>
+            {current?.order_id ? (
+              <span className="text-body3-default rounded-small border border-core bg-core-surface-ii px-2 py-0.5 font-mono text-secondary">
+                Order: {current.order_id}
+              </span>
+            ) : null}
+          </div>
           {current ? <StageChip stage={current.stage} /> : null}
         </div>
 
         <div className="card-surface flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex-1 space-y-1 overflow-y-auto p-4">
+          {current?.is_alert ? (
+            <div className="flex items-center gap-2 border-b border-negative/20 bg-alert-wash px-4 py-2.5">
+              <span className="text-body2-heavy text-negative">! Alert Log</span>
+              <span className="text-body3-default text-secondary">
+                This voice interaction flagged a discrepancy or alert.
+              </span>
+            </div>
+          ) : null}
+
+          <div className="flex-1 space-y-2 overflow-y-auto p-4">
             {current?.messages.map((message) => (
               <ChatBubble key={message.id} message={message} />
             ))}
           </div>
 
-          <div className="border-core flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+          <div className="border-core flex flex-wrap items-center justify-between gap-3 border-t bg-core-surface px-4 py-3">
             <button
               type="button"
-              className="text-body2-heavy rounded-small bg-brand-green px-4 py-2 text-on-brand disabled:opacity-40"
+              className="text-body2-heavy rounded-small bg-brand-green px-4 py-2 text-on-brand transition-opacity disabled:opacity-40"
               disabled={!current || current.stage === "done"}
               onClick={playDemoStep}
             >

@@ -67,6 +67,208 @@
     ]
   },
   {
+    "session_id": "VS-004",
+    "stage": "done",
+    "is_alert": true,
+    "order_id": "RCV-4421-STR",
+    "created_at": "2026-09-11T18:00:00Z",
+    "summary": "Alert: BoL (24 flats) ≠ packing slip (20 flats) strawberries S4410 Berry Grove Co.",
+    "messages": [
+      {
+        "id": "str-1",
+        "role": "system",
+        "text": "Parsing…",
+        "at": "2026-09-11T18:00:01Z"
+      },
+      {
+        "id": "str-2",
+        "role": "user",
+        "text": "receiving strawberries lot S4410 Berry Grove",
+        "state": "parsed",
+        "at": "2026-09-11T18:00:05Z"
+      },
+      {
+        "id": "str-3",
+        "role": "system",
+        "text": "Confirming…",
+        "at": "2026-09-11T18:00:06Z"
+      },
+      {
+        "id": "str-4",
+        "role": "agent",
+        "text": "Bill of lading lists 24 flats, but packing slip shows 20 flats. What is physical pallet count?",
+        "at": "2026-09-11T18:00:08Z"
+      },
+      {
+        "id": "str-5",
+        "role": "user",
+        "text": "dock count is 20 flats matching packing slip, BoL has typo",
+        "state": "parsed",
+        "at": "2026-09-11T18:00:15Z"
+      },
+      {
+        "id": "str-6",
+        "role": "system",
+        "text": "Logging data…",
+        "at": "2026-09-11T18:00:16Z"
+      },
+      {
+        "id": "str-7",
+        "role": "agent",
+        "text": "Summary: 20 flats strawberries (lot S4410) received. BoL discrepancy logged. Flagged for supervisor discrepancy review.",
+        "at": "2026-09-11T18:00:18Z"
+      }
+    ]
+  },
+  {
+    "session_id": "VS-005",
+    "stage": "done",
+    "is_alert": true,
+    "order_id": "RCV-4410-SPI",
+    "created_at": "2026-09-10T09:35:00Z",
+    "summary": "Alert: Heartbeat stale — no worker response on spinach P1188 GreenLeaf Produce.",
+    "messages": [
+      {
+        "id": "spi-1",
+        "role": "system",
+        "text": "Parsing…",
+        "at": "2026-09-10T09:35:01Z"
+      },
+      {
+        "id": "spi-2",
+        "role": "user",
+        "text": "checking spinach shipment GreenLeaf lot P1188",
+        "state": "parsed",
+        "at": "2026-09-10T09:35:05Z"
+      },
+      {
+        "id": "spi-3",
+        "role": "system",
+        "text": "Confirming…",
+        "at": "2026-09-10T09:35:06Z"
+      },
+      {
+        "id": "spi-4",
+        "role": "agent",
+        "text": "Awaiting count confirmation: expected 30 cases. Can you verify?",
+        "at": "2026-09-10T09:35:08Z"
+      },
+      {
+        "id": "spi-5",
+        "role": "system",
+        "text": "Logging data…",
+        "at": "2026-09-10T09:40:00Z"
+      },
+      {
+        "id": "spi-6",
+        "role": "agent",
+        "text": "Summary: Order pending clarification exceeded shift threshold without voice response. Automated heartbeat flagged order.",
+        "at": "2026-09-10T09:40:01Z"
+      }
+    ]
+  },
+  {
+    "session_id": "VS-006",
+    "stage": "done",
+    "is_alert": true,
+    "order_id": "RCV-4402-AVO",
+    "created_at": "2026-09-08T16:05:00Z",
+    "summary": "Alert: Lot code missing on slip — Fresh Farms avocado A9921.",
+    "messages": [
+      {
+        "id": "avo-1",
+        "role": "system",
+        "text": "Parsing…",
+        "at": "2026-09-08T16:05:01Z"
+      },
+      {
+        "id": "avo-2",
+        "role": "user",
+        "text": "avocado crates from Fresh Farms, slip has no lot code",
+        "state": "parsed",
+        "at": "2026-09-08T16:05:07Z"
+      },
+      {
+        "id": "avo-3",
+        "role": "system",
+        "text": "Confirming…",
+        "at": "2026-09-08T16:05:08Z"
+      },
+      {
+        "id": "avo-4",
+        "role": "agent",
+        "text": "BoL states lot A9921. Does crate tag match A9921?",
+        "at": "2026-09-08T16:05:10Z"
+      },
+      {
+        "id": "avo-5",
+        "role": "system",
+        "text": "Logging data…",
+        "at": "2026-09-08T16:05:20Z"
+      },
+      {
+        "id": "avo-6",
+        "role": "agent",
+        "text": "Summary: Packing slip missing lot code. Three-way match mismatch flagged.",
+        "at": "2026-09-08T16:05:25Z"
+      }
+    ]
+  },
+  {
+    "session_id": "VS-007",
+    "stage": "done",
+    "is_alert": true,
+    "order_id": "RCV-4399-MIX",
+    "created_at": "2026-09-05T10:55:00Z",
+    "summary": "Alert: Temperature 48°F out of range (>41°F) CoolChain mixed greens M7701.",
+    "messages": [
+      {
+        "id": "mix-1",
+        "role": "system",
+        "text": "Parsing…",
+        "at": "2026-09-05T10:55:01Z"
+      },
+      {
+        "id": "mix-2",
+        "role": "user",
+        "text": "unloading mixed greens lot M7701 probed temp is 48 degrees",
+        "state": "parsed",
+        "at": "2026-09-05T10:55:08Z"
+      },
+      {
+        "id": "mix-3",
+        "role": "system",
+        "text": "Confirming…",
+        "at": "2026-09-05T10:55:09Z"
+      },
+      {
+        "id": "mix-4",
+        "role": "agent",
+        "text": "Warning: 48°F exceeds max receiving threshold 41°F. Did you re-probe second case?",
+        "at": "2026-09-05T10:55:12Z"
+      },
+      {
+        "id": "mix-5",
+        "role": "user",
+        "text": "yes re-probed case 2 at 47.8 degrees, cold chain broken",
+        "state": "parsed",
+        "at": "2026-09-05T10:55:20Z"
+      },
+      {
+        "id": "mix-6",
+        "role": "system",
+        "text": "Logging data…",
+        "at": "2026-09-05T10:55:22Z"
+      },
+      {
+        "id": "mix-7",
+        "role": "agent",
+        "text": "Summary: Critical temperature excursion (48°F). Supervisor alert opened; shipment held on dock.",
+        "at": "2026-09-05T10:55:25Z"
+      }
+    ]
+  },
+  {
     "session_id": "VS-002",
     "stage": "done",
     "is_alert": false,
