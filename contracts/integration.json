@@ -1,0 +1,59 @@
+{
+  "do_not_merge_repos": true,
+  "runtime_root": "/home/dell/dellxnvidia_hackathon",
+  "product_root": "/home/leah/Desktop/warehouse",
+  "rule": "dellxnvidia_hackathon is the machine (models, vLLM, Whisper, NemoClaw). warehouse is the product (matcher, Mongo docs, three panes). Connect them with URLs and JSON files, not by copying OpenClaw into warehouse.",
+  "ports": {
+    "qwen_vllm": "http://127.0.0.1:8000/v1",
+    "whisper": "http://127.0.0.1:8001/v1",
+    "mongo": "mongodb://127.0.0.1:27017/dockcheck",
+    "dockcheck_api": "http://127.0.0.1:8787/api"
+  },
+  "env": {
+    "LLM": {
+      "OPENAI_BASE_URL": "http://127.0.0.1:8000/v1",
+      "OPENAI_API_KEY": "local",
+      "model": "qwen3.6-35b-a3b-nvfp4",
+      "note": "NemoClaw should wrap this as inference.local. Do not send this URL to the whisper skill."
+    },
+    "STT": {
+      "WHISPER_BASE_URL": "http://127.0.0.1:8001/v1",
+      "WHISPER_API_KEY": "local",
+      "model": "ggml-small.en.bin",
+      "note": "OpenClaw skill openai-whisper-api uses OPENAI_BASE_URL. That collides with Qwen. Warehouse adapter must use WHISPER_BASE_URL, not OPENAI_BASE_URL."
+    }
+  },
+  "glue": [
+    {
+      "from": "wav in gb10-offline-bundle/mock-data/audio or data/inbox/audio",
+      "via": "backend/ingest/transcribe_wav.py → POST :8001/v1/audio/transcriptions",
+      "to": "data/inbox/voice/EVT-*.json"
+    },
+    {
+      "from": "data/inbox/docs + data/inbox/voice",
+      "via": "backend/ingest + matcher + store",
+      "to": "Mongo dockcheck.* + pipeline_events"
+    },
+    {
+      "from": "pipeline_events",
+      "via": "GET /api/events",
+      "to": "console three panes"
+    },
+    {
+      "from": "OpenClaw heartbeat (after NemoClaw onboard)",
+      "via": "skill: list inbox, call matcher tools, write report",
+      "to": "same Mongo. Do not give OpenClaw a second database."
+    }
+  ],
+  "on_box_now": {
+    "qwen_weights": "complete (22 GB, three shards)",
+    "whisper_weights": "complete (ggml-small.bin + ggml-small.en.bin)",
+    "vllm_image_tar": "present, not loaded",
+    "whisper.cpp_binary": "not built",
+    "vllm_server": "not running",
+    "docker_for_leah": "denied (not in docker group)",
+    "mongo": "listening 127.0.0.1:27017, empty (admin/config/local only)",
+    "nemoclaw_cli": "not installed",
+    "warehouse_product": "contracts + sample JSON only, no backend/console code yet"
+  }
+}
