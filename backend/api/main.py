@@ -84,9 +84,36 @@ def events(after: int = 0, pane: str | None = None):
     return {"events": [row for row in fixture if int(row.get("seq") or 0) > after]}
 
 
+def _page(limit: int, offset: int) -> tuple[int, int | None]:
+    offset = max(0, offset)
+    if limit <= 0:
+        return offset, None
+    return offset, min(limit, 100)
+
+
+def _page_body(rows: list, total: int, offset: int, limit: int | None) -> dict[str, Any]:
+    count = len(rows)
+    used = 0 if limit is None else limit
+    return {
+        "total": total,
+        "offset": offset,
+        "limit": used,
+        "has_more": offset + count < total,
+    }
+
+
 @app.get("/api/orders")
-def orders():
-    return {"orders": _jsonify(store.list_orders())}
+def orders(limit: int = 10, offset: int = 0):
+    offset, capped = _page(limit, offset)
+    rows, total = store.page_orders(offset=offset, limit=capped)
+    body = _page_body(rows, total, offset, capped)
+    body["orders"] = _jsonify(rows)
+    return body
+
+
+@app.get("/api/orders/facets")
+def order_facets():
+    return store.order_facets()
 
 
 @app.get("/api/papers")
@@ -103,8 +130,23 @@ def order(order_id: str):
 
 
 @app.get("/api/alerts")
-def alerts():
-    return {"alerts": _jsonify(store.list_alerts())}
+def alerts(limit: int = 10, offset: int = 0):
+    offset, capped = _page(limit, offset)
+    rows, total = store.page_alerts(offset=offset, limit=capped)
+    related = store.orders_by_ids([row.get("order_id") for row in rows if row.get("order_id")])
+    body = _page_body(rows, total, offset, capped)
+    body["alerts"] = _jsonify(rows)
+    body["orders"] = _jsonify(related)
+    return body
+
+
+@app.get("/api/suppliers")
+def suppliers(limit: int = 10, offset: int = 0, start: str | None = None, end: str | None = None):
+    offset, capped = _page(limit, offset)
+    rows, total = store.page_suppliers(offset=offset, limit=capped, start=start, end=end)
+    body = _page_body(rows, total, offset, capped)
+    body["suppliers"] = _jsonify(rows)
+    return body
 
 
 @app.post("/api/orders/{order_id}/flag")

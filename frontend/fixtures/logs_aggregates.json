@@ -1,25 +1,1529 @@
 {
-  "note": "Pre-aggregated demo data for Logs page. Keys are supplier names and calendar days.",
+  "note": "Aggregated from Mongo produce-week seed (Mon 2026-09-07 .. Sat 2026-09-12).",
   "manufacturers": {
-    "Fresh Farms": {
-      "2026-09-10": { "pending_clarification": 12, "committed": 40, "flagged": 8 },
-      "2026-09-11": { "pending_clarification": 5, "committed": 55, "flagged": 10 },
-      "2026-09-12": { "pending_clarification": 8, "committed": 30, "flagged": 12 }
-    },
     "Berry Grove Co": {
-      "2026-09-10": { "pending_clarification": 4, "committed": 22, "flagged": 2 },
-      "2026-09-11": { "pending_clarification": 10, "committed": 18, "flagged": 14 },
-      "2026-09-12": { "pending_clarification": 3, "committed": 28, "flagged": 6 }
+      "2026-09-07": {
+        "pending_clarification": 1,
+        "committed": 7,
+        "flagged": 2
+      },
+      "2026-09-08": {
+        "pending_clarification": 1,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 11,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 1,
+        "committed": 7,
+        "flagged": 3
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 1
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
     },
-    "GreenLeaf Produce": {
-      "2026-09-10": { "pending_clarification": 6, "committed": 35, "flagged": 0 },
-      "2026-09-11": { "pending_clarification": 2, "committed": 40, "flagged": 1 },
-      "2026-09-12": { "pending_clarification": 9, "committed": 25, "flagged": 4 }
+    "Berry Grove Co 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 1
+      },
+      "2026-09-08": {
+        "pending_clarification": 1,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 2,
+        "committed": 0,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Berry Grove Co 3": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 1
+      },
+      "2026-09-10": {
+        "pending_clarification": 2,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Berry Grove Co 5": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Berry Grove Co 6": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Berry Grove Co 7": {
+      "2026-09-07": {
+        "pending_clarification": 1,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Blue Mesa Farms": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Blue Mesa Farms 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 1,
+        "committed": 0,
+        "flagged": 0
+      }
+    },
+    "Blue Mesa Farms 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 1,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Blue Mesa Farms 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Blue Mesa Farms 6": {
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      }
+    },
+    "Coastal Crisp": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 2
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Coastal Crisp 2": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 1,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Coastal Crisp 3": {
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      }
+    },
+    "Coastal Crisp 4": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Coastal Crisp 5": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Coastal Crisp 6": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
     },
     "CoolChain Farms": {
-      "2026-09-10": { "pending_clarification": 1, "committed": 15, "flagged": 5 },
-      "2026-09-11": { "pending_clarification": 0, "committed": 20, "flagged": 3 },
-      "2026-09-12": { "pending_clarification": 2, "committed": 12, "flagged": 8 }
+      "2026-09-05": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-07": {
+        "pending_clarification": 2,
+        "committed": 9,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 2,
+        "committed": 7,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 10,
+        "flagged": 1
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 6,
+        "flagged": 1
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 8,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "CoolChain Farms 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 1
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "CoolChain Farms 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      }
+    },
+    "CoolChain Farms 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "CoolChain Farms 5": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "CoolChain Farms 7": {
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Fresh Farms": {
+      "2026-09-07": {
+        "pending_clarification": 1,
+        "committed": 16,
+        "flagged": 2
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 26,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 1,
+        "committed": 13,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 31,
+        "flagged": 2
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 8,
+        "flagged": 3
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 7,
+        "flagged": 1
+      }
+    },
+    "Fresh Farms 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 2
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Fresh Farms 4": {
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Fresh Farms 5": {
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "GreenLeaf Produce": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 8,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 1
+      },
+      "2026-09-09": {
+        "pending_clarification": 2,
+        "committed": 5,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 6,
+        "flagged": 4
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 1
+      }
+    },
+    "GreenLeaf Produce 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "GreenLeaf Produce 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      }
+    },
+    "GreenLeaf Produce 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "GreenLeaf Produce 5": {
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "GreenLeaf Produce 6": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "GreenLeaf Produce 7": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Harbor Greens": {
+      "2026-09-07": {
+        "pending_clarification": 1,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Harbor Greens 2": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Harbor Greens 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Harbor Greens 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 1,
+        "committed": 0,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Harbor Greens 5": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Harbor Greens 6": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "High Desert Growers": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 2
+      },
+      "2026-09-10": {
+        "pending_clarification": 1,
+        "committed": 6,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 1,
+        "committed": 0,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "High Desert Growers 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "High Desert Growers 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "High Desert Growers 4": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "High Desert Growers 5": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "High Desert Growers 6": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "High Desert Growers 7": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "North Fork Cold": {
+      "2026-09-07": {
+        "pending_clarification": 1,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 1,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "North Fork Cold 2": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 1
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "North Fork Cold 3": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "North Fork Cold 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "North Fork Cold 5": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "North Fork Cold 6": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "North Fork Cold 7": {
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Pacific Pack": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 1
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 1
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Pacific Pack 2": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Pacific Pack 3": {
+      "2026-09-08": {
+        "pending_clarification": 1,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Pacific Pack 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 2
+      }
+    },
+    "Pacific Pack 5": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      }
+    },
+    "Pacific Pack 6": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Prairie Lot": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 1,
+        "committed": 3,
+        "flagged": 1
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      }
+    },
+    "Prairie Lot 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Prairie Lot 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Prairie Lot 4": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Prairie Lot 5": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Prairie Lot 6": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Red River Produce": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Red River Produce 2": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Red River Produce 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Red River Produce 4": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Red River Produce 5": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      }
+    },
+    "Red River Produce 6": {
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Red River Produce 7": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      }
+    },
+    "Sierra Packing": {
+      "2026-09-07": {
+        "pending_clarification": 1,
+        "committed": 0,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 1
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Sierra Packing 2": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 1
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 1,
+        "committed": 2,
+        "flagged": 1
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Sierra Packing 3": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 1,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Sierra Packing 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Sierra Packing 5": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Sierra Packing 6": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Sunridge Organics": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 1,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      }
+    },
+    "Sunridge Organics 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 2
+      },
+      "2026-09-10": {
+        "pending_clarification": 1,
+        "committed": 0,
+        "flagged": 0
+      }
+    },
+    "Sunridge Organics 3": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 0,
+        "flagged": 2
+      }
+    },
+    "Sunridge Organics 4": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Sunridge Organics 5": {
+      "2026-09-10": {
+        "pending_clarification": 1,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Sunridge Organics 6": {
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Sunridge Organics 7": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      }
+    },
+    "Valley Mist": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 8,
+        "flagged": 2
+      },
+      "2026-09-08": {
+        "pending_clarification": 1,
+        "committed": 3,
+        "flagged": 2
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 3,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 5,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 4,
+        "flagged": 0
+      }
+    },
+    "Valley Mist 2": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-08": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Valley Mist 3": {
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-11": {
+        "pending_clarification": 0,
+        "committed": 2,
+        "flagged": 0
+      },
+      "2026-09-12": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Valley Mist 4": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Valley Mist 5": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-10": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
+    },
+    "Valley Mist 7": {
+      "2026-09-07": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      },
+      "2026-09-09": {
+        "pending_clarification": 0,
+        "committed": 1,
+        "flagged": 0
+      }
     }
   },
   "examples": {
@@ -27,19 +1531,27 @@
       "mode": "multiple",
       "start": "2026-09-12",
       "end": null,
-      "manufacturers": ["Fresh Farms", "Berry Grove Co"]
+      "manufacturers": [
+        "Fresh Farms",
+        "Berry Grove Co"
+      ]
     },
     "multiple_range": {
       "mode": "multiple",
-      "start": "2026-09-10",
+      "start": "2026-09-07",
       "end": "2026-09-12",
-      "manufacturers": ["Fresh Farms", "Berry Grove Co"]
+      "manufacturers": [
+        "Fresh Farms",
+        "Berry Grove Co"
+      ]
     },
     "single_range": {
       "mode": "single",
-      "start": "2026-09-10",
+      "start": "2026-09-07",
       "end": "2026-09-12",
-      "manufacturers": ["Fresh Farms"]
+      "manufacturers": [
+        "Fresh Farms"
+      ]
     }
   }
 }

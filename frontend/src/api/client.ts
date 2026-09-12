@@ -70,6 +70,10 @@ export type ApiAlert = {
   severity: string;
   created_at: string;
   acknowledged?: boolean;
+  item?: string | null;
+  supplier?: string | null;
+  lot_code?: string | null;
+  ai_summary?: string | null;
 };
 
 export type ApiEvent = {
@@ -83,10 +87,86 @@ export type ApiEvent = {
   payload?: Record<string, unknown>;
 };
 
+export const PAGE_SIZE = 10;
+
+export type Page<T> = {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+};
+
+export type ApiSupplier = {
+  name: string;
+  days: Record<string, { pending_clarification: number; committed: number; flagged: number }>;
+};
+
+function asPage<T>(
+  items: T[],
+  meta: { total?: number; offset?: number; limit?: number; has_more?: boolean },
+): Page<T> {
+  return {
+    items,
+    total: meta.total ?? items.length,
+    offset: meta.offset ?? 0,
+    limit: meta.limit ?? items.length,
+    has_more: Boolean(meta.has_more),
+  };
+}
+
+/** Voice / OpenClaw: full dump. `limit=0` means no page cap. */
 export const fetchOrders = (s?: AbortSignal) =>
-  getJson<{ orders: ApiOrder[] }>("/orders", s).then((d) => d.orders ?? []);
+  getJson<{ orders: ApiOrder[] }>("/orders?limit=0", s).then((d) => d.orders ?? []);
+
+export const fetchOrdersPage = (offset: number, limit = PAGE_SIZE, s?: AbortSignal) =>
+  getJson<{
+    orders: ApiOrder[];
+    total: number;
+    offset: number;
+    limit: number;
+    has_more: boolean;
+  }>(`/orders?offset=${offset}&limit=${limit}`, s).then((d) => asPage(d.orders ?? [], d));
+
+export const fetchOrderFacets = (s?: AbortSignal) =>
+  getJson<{ items: string[]; suppliers: string[]; qualities: string[]; dates: string[] }>(
+    "/orders/facets",
+    s,
+  );
+
+export const fetchAlertsPage = (offset: number, limit = PAGE_SIZE, s?: AbortSignal) =>
+  getJson<{
+    alerts: ApiAlert[];
+    orders: ApiOrder[];
+    total: number;
+    offset: number;
+    limit: number;
+    has_more: boolean;
+  }>(`/alerts?offset=${offset}&limit=${limit}`, s).then((d) => ({
+    ...asPage(d.alerts ?? [], d),
+    orders: d.orders ?? [],
+  }));
+
+export const fetchSuppliersPage = (
+  offset: number,
+  limit = PAGE_SIZE,
+  range?: { start?: string; end?: string },
+  s?: AbortSignal,
+) => {
+  const q = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (range?.start) q.set("start", range.start);
+  if (range?.end) q.set("end", range.end);
+  return getJson<{
+    suppliers: ApiSupplier[];
+    total: number;
+    offset: number;
+    limit: number;
+    has_more: boolean;
+  }>(`/suppliers?${q}`, s).then((d) => asPage(d.suppliers ?? [], d));
+};
+
 export const fetchAlerts = (s?: AbortSignal) =>
-  getJson<{ alerts: ApiAlert[] }>("/alerts", s).then((d) => d.alerts ?? []);
+  getJson<{ alerts: ApiAlert[] }>("/alerts?limit=0", s).then((d) => d.alerts ?? []);
 export const fetchEvents = (pane?: string, s?: AbortSignal) =>
   getJson<{ events: ApiEvent[] }>(pane ? `/events?pane=${pane}` : "/events", s)
     .then((d) => d.events ?? []);

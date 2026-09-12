@@ -7,8 +7,10 @@ import {
 } from "@/components/database/FilterPopover";
 import { SearchableDropdown } from "@/components/database/SearchableDropdown";
 import { StatusChip } from "@/components/database/StatusChip";
+import { InfiniteSentinel } from "@/components/InfiniteSentinel";
+import { industryFor } from "@/api/adapters";
 import type { OrderRow } from "@/types/order";
-import { useOrders } from "@/api/useLiveData";
+import { useOrderFacets, useOrders } from "@/api/useLiveData";
 
 const fallbackOrders = ordersData as OrderRow[];
 
@@ -70,47 +72,50 @@ function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
 }
 
 export function DatabasePage() {
-  const { data: orders } = useOrders(fallbackOrders);
+  const { data: orders, total, hasMore, loadMore, isLoading } = useOrders(fallbackOrders);
+  const facets = useOrderFacets();
   const [filters, setFilters] = useState<ColumnFilterState>({});
   const [draft, setDraft] = useState<ColumnFilterState>({});
   const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
-  // Distinct options across dataset for comboboxes
   const allIndustries = useMemo(() => {
     const set = new Set<string>();
+    (facets?.items ?? orders.map((o) => o.item)).forEach((item) => set.add(industryFor(item)));
     orders.forEach((o) => {
       if (o.industry) set.add(o.industry);
     });
     return Array.from(set).sort();
-  }, []);
+  }, [facets, orders]);
 
   const allItems = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(facets?.items ?? []);
     orders.forEach((o) => set.add(o.item));
     return Array.from(set).sort();
-  }, []);
+  }, [facets, orders]);
 
   const allQualities = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(facets?.qualities ?? []);
     orders.forEach((o) => {
       if (o.quality) set.add(o.quality);
     });
     return Array.from(set).sort();
-  }, []);
+  }, [facets, orders]);
 
   const allSuppliersLots = useMemo(() => {
     const set = new Set<string>();
+    (facets?.suppliers ?? []).forEach((name) => set.add(name));
     orders.forEach((o) => {
       set.add(`${o.supplier} · ${o.lot_code}`);
     });
     return Array.from(set).sort();
-  }, []);
+  }, [facets, orders]);
 
   const allDates = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(facets?.dates ?? []);
     orders.forEach((o) => set.add(o.date));
     return Array.from(set).sort().reverse();
-  }, []);
+  }, [facets, orders]);
 
   function getColumnOptions(col: ColumnKey): string[] {
     switch (col) {
@@ -129,7 +134,7 @@ export function DatabasePage() {
     }
   }
 
-  const rows = useMemo(() => applyFilters(orders, filters), [filters]);
+  const rows = useMemo(() => applyFilters(orders, filters), [filters, orders]);
 
   const activeChips = Object.entries(filters).filter(([, value]) => {
     if (Array.isArray(value)) return value.length > 0;
@@ -169,7 +174,7 @@ export function DatabasePage() {
           </span>
         </div>
         <span className="text-body3-default text-secondary">
-          Showing {rows.length} of {orders.length} orders
+          Showing {rows.length} of {total || orders.length} orders
         </span>
       </div>
 
@@ -205,7 +210,7 @@ export function DatabasePage() {
         </div>
       ) : null}
 
-      <div className="card-surface min-h-0 flex-1 overflow-auto">
+      <div ref={setScroller} className="card-surface min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-left">
           <thead className="bg-core-surface sticky top-0 z-10 border-b border-core shadow-sm">
             <tr>
@@ -336,6 +341,12 @@ export function DatabasePage() {
             )}
           </tbody>
         </table>
+        <InfiniteSentinel
+          root={scroller}
+          onVisible={loadMore}
+          disabled={!hasMore || isLoading}
+          label={hasMore ? "Loading more receipts…" : ""}
+        />
       </div>
     </section>
   );

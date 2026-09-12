@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import logsData from "@/assets/data/logs_aggregates.json";
 import { LogsChart, type ChartBar } from "@/components/logs/LogsChart";
 import { TimeRangeControls } from "@/components/logs/TimeRangeControls";
+import { InfiniteSentinel } from "@/components/InfiniteSentinel";
 import type { LogsAggregateFile, LogsMode, StatusBreakdown } from "@/types/logs";
 import { useLogsAggregate } from "@/api/useLiveData";
 
@@ -36,11 +37,14 @@ function resolveName(input: string, aggregate: LogsAggregateFile) {
 }
 
 export function LogsPage() {
-  const { data } = useLogsAggregate(fallbackLogs);
   const [start, setStart] = useState("2026-09-10");
   const [end, setEnd] = useState("2026-09-12");
   const [mode, setMode] = useState<LogsMode | null>("multiple");
   const [names, setNames] = useState(["Fresh Farms", "Berry Grove Co"]);
+  const { data, names: loadedNames, hasMore, loadMore, isLoading, total } = useLogsAggregate(
+    fallbackLogs,
+    { start, end },
+  );
 
   const { bars, error } = useMemo(() => {
     if (!mode || !start) return { bars: [] as ChartBar[], error: null as string | null };
@@ -52,7 +56,8 @@ export function LogsPage() {
     if (mode === "multiple") {
       const rangeEnd = end || start;
       const days = eachDay(start, rangeEnd);
-      const nextBars = names
+      const companyNames = loadedNames.length ? loadedNames : names;
+      const nextBars = companyNames
         .map((raw) => {
           const name = resolveName(raw, data);
           if (!name) return null;
@@ -64,12 +69,9 @@ export function LogsPage() {
         })
         .filter((bar): bar is ChartBar => bar !== null);
 
-      const missing = names.filter((raw) => !resolveName(raw, data));
       return {
         bars: nextBars,
-        error: missing.length
-          ? `Unknown manufacturer: ${missing.join(", ")}. Available: ${Object.keys(data.manufacturers).join(", ")}`
-          : null,
+        error: null as string | null,
       };
     }
 
@@ -93,7 +95,7 @@ export function LogsPage() {
       })),
       error: null,
     };
-  }, [mode, start, end, names]);
+  }, [mode, start, end, names, data, loadedNames]);
 
   function handleAddManufacturer(manufacturerToAdd: string) {
     const resolved = resolveName(manufacturerToAdd, data);
@@ -174,9 +176,15 @@ export function LogsPage() {
         bars={bars}
         mode={mode}
         singleManufacturerName={resolveName(names[0] ?? "", data) ?? names[0]}
-        showAdd={mode === "multiple" && bars.length > 0}
+        showAdd={false}
         onAddManufacturer={handleAddManufacturer}
         availableManufacturers={availableToAdd}
+      />
+
+      <InfiniteSentinel
+        onVisible={loadMore}
+        disabled={mode !== "multiple" || !hasMore || isLoading}
+        label={hasMore ? `Loading more companies… (${loadedNames.length} of ${total || "…"})` : ""}
       />
 
       <TimeRangeControls

@@ -52,7 +52,7 @@ curl -sS -X POST "$DOCKCHECK_API/voice-events" \
 If `GET /work` shows an open clarification, ask the worker once. When they confirm the short-ship:
 
 ```bash
-curl -sS -X POST "$DOCKCHECK_API/clarifications/CLQ-RCV-PO-4419-ROM/answer" \
+curl -sS -X POST "$DOCKCHECK_API/clarifications/CLQ-RCV-4419-ROM/answer" \
   -H 'Content-Type: application/json' \
   -d '{"intent":"confirm_discrepancy","utterance":"yeah that is right, only 40 on the pallet, not 50"}'
 ```

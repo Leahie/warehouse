@@ -3,21 +3,17 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pymongo import ASCENDING, MongoClient, ReturnDocument
 
 from match import resolve
+from .ids import order_id_for as _slug
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _slug(item: str | None, po_id: str | None) -> str:
-    token = (item or "LINE").strip().upper().replace(" ", "")[:3]
-    return f"RCV-{po_id or 'UNK'}-{token}"
 
 
 class Store:
@@ -87,6 +83,9 @@ class Store:
         self.emit("voice_received", "voice", actor, "voice_events", doc["event_id"], {
             "utterance": doc.get("utterance"),
             "worker_id": doc.get("worker_id"),
+            "lot_code": (doc.get("parsed") or {}).get("lot_code"),
+            "item": (doc.get("parsed") or {}).get("item"),
+            "order_id": doc.get("order_id"),
         })
         parsed = doc.get("parsed")
         if parsed:
@@ -130,7 +129,7 @@ class Store:
         actor: str = "ingest",
     ) -> dict[str, Any]:
         data = result.to_dict() if hasattr(result, "to_dict") else dict(result)
-        order_id = _slug(data.get("item"), data.get("po_id"))
+        order_id = _slug(data.get("po_id"), data.get("item"))
         status = data["suggested_status"]
         existing = self.db.orders.find_one({"order_id": order_id}) or {}
         voice_ids = list(dict.fromkeys((existing.get("voice_event_ids") or []) + [voice_event_id]))
@@ -199,6 +198,7 @@ class Store:
             self.db.orders.update_one({"order_id": order_id}, {"$set": {"clarification_ids": list(dict.fromkeys(clarification_ids))}})
             self.emit("clarification_asked", "voice", actor, "clarifications", clq_id, {
                 "question": data["clarification_question"],
+                "order_id": order_id,
             })
         if status == "flagged":
             self.flag(order_id, reason=data.get("flag_reason") or "flagged", source="three_way_mismatch", actor=actor)
@@ -221,8 +221,18 @@ class Store:
         self.emit("answer_received", "voice", actor, "voice_events", event.get("event_id"), {
             "intent": intent,
             "utterance": event.get("utterance"),
+            "order_id": clq["order_id"],
         })
         order_id = clq["order_id"]
+        if event.get("event_id"):
+            self.db.orders.update_one(
+                {"order_id": order_id},
+                {"$addToSet": {"voice_event_ids": event["event_id"]}},
+            )
+            self.db.voice_events.update_one(
+                {"event_id": event["event_id"]},
+                {"$set": {"order_id": order_id}},
+            )
         if intent == "confirm_discrepancy":
             return self.flag(order_id, reason="short-ship confirmed by worker", source="worker_confirm", actor=actor)
         if intent == "correct_entry":
@@ -240,6 +250,45 @@ class Store:
             )
         return self.db.orders.find_one({"order_id": order_id}, {"_id": 0})
 
+    def upsert_alert(
+        self,
+        *,
+        order_id: str,
+        reason: str,
+        source: str = "seed",
+        created_at: datetime | None = None,
+        severity: str | None = None,
+        ai_summary: str | None = None,
+        actor: str = "api",
+        emit_event: bool = True,
+    ) -> dict[str, Any]:
+        order = self.db.orders.find_one({"order_id": order_id}, {"_id": 0}) or {}
+        now = created_at or _now()
+        alert_id = f"ALT-{order_id}"
+        if not severity:
+            severity = "critical" if source in {"worker_confirm", "three_way_mismatch", "supervisor"} else "warning"
+        alert = {
+            "alert_id": alert_id,
+            "order_id": order_id,
+            "severity": severity,
+            "reason": reason,
+            "ai_summary": ai_summary or (
+                f"{reason}. {order.get('item')}: received {order.get('quantity_received')} "
+                f"vs expected {order.get('quantity_expected')} from {order.get('supplier')}."
+            ),
+            "lot_code": order.get("lot_code"),
+            "supplier": order.get("supplier"),
+            "created_at": now,
+            "acknowledged": False,
+        }
+        self.db.alerts.update_one({"alert_id": alert_id}, {"$set": alert}, upsert=True)
+        if emit_event:
+            self.emit("alert_opened", "database", actor, "alerts", alert_id, {
+                "order_id": order_id,
+                "severity": severity,
+            })
+        return alert
+
     def flag(self, order_id: str, *, reason: str, source: str, actor: str = "api") -> dict[str, Any]:
         now = _now()
         order = self.db.orders.find_one_and_update(
@@ -256,28 +305,57 @@ class Store:
         )
         if not order:
             raise KeyError(order_id)
-        alert_id = f"ALT-{order_id}"
-        alert = {
-            "alert_id": alert_id,
-            "order_id": order_id,
-            "severity": "critical",
-            "reason": reason,
-            "created_at": now,
-            "acknowledged": False,
-        }
-        self.db.alerts.update_one({"alert_id": alert_id}, {"$set": alert}, upsert=True)
+        self.upsert_alert(order_id=order_id, reason=reason, source=source, created_at=now, actor=actor)
         self.emit("order_flagged", "database", actor, "orders", order_id, {
             "flagged_by": source,
             "flag_reason": reason,
         })
-        self.emit("alert_opened", "database", actor, "alerts", alert_id, {
-            "order_id": order_id,
-            "severity": "critical",
-        })
         return order
 
+    def _decorate_orders(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for row in rows:
+            # Frontend adapters read committed_at; Mongo stores time_process_finished.
+            if row.get("committed_at") is None:
+                row["committed_at"] = row.get("time_process_finished")
+        return rows
+
     def list_orders(self) -> list[dict[str, Any]]:
-        return list(self.db.orders.find({}, {"_id": 0}))
+        return self._decorate_orders(list(self.db.orders.find({}, {"_id": 0})))
+
+    def count_orders(self) -> int:
+        return self.db.orders.count_documents({})
+
+    def page_orders(self, *, offset: int = 0, limit: int | None = 10) -> tuple[list[dict[str, Any]], int]:
+        total = self.count_orders()
+        cursor = self.db.orders.find({}, {"_id": 0}).sort("created_at", -1)
+        if offset:
+            cursor = cursor.skip(offset)
+        if limit is not None:
+            cursor = cursor.limit(limit)
+        return self._decorate_orders(list(cursor)), total
+
+    def orders_by_ids(self, ids: list[str]) -> list[dict[str, Any]]:
+        if not ids:
+            return []
+        return self._decorate_orders(list(self.db.orders.find({"order_id": {"$in": ids}}, {"_id": 0})))
+
+    def order_facets(self) -> dict[str, list[str]]:
+        items = sorted({x for x in self.db.orders.distinct("item") if x})
+        suppliers = sorted({x for x in self.db.orders.distinct("supplier") if x})
+        qualities = sorted({x for x in self.db.orders.distinct("quality") if x})
+        days: set[str] = set()
+        for row in self.db.orders.find({}, {"_id": 0, "created_at": 1, "updated_at": 1}):
+            when = row.get("created_at") or row.get("updated_at")
+            if hasattr(when, "date"):
+                days.add(when.date().isoformat())
+            elif when:
+                days.add(str(when)[:10])
+        return {
+            "items": items,
+            "suppliers": suppliers,
+            "qualities": qualities,
+            "dates": sorted(days, reverse=True),
+        }
 
     def list_documents(self, doc_type: str | None = None) -> list[dict[str, Any]]:
         query: dict[str, Any] = {}
@@ -348,6 +426,90 @@ class Store:
 
     def list_alerts(self) -> list[dict[str, Any]]:
         return list(self.db.alerts.find({"acknowledged": False}, {"_id": 0}))
+
+    def count_alerts(self) -> int:
+        return self.db.alerts.count_documents({"acknowledged": False})
+
+    def page_alerts(self, *, offset: int = 0, limit: int | None = 10) -> tuple[list[dict[str, Any]], int]:
+        total = self.count_alerts()
+        cursor = self.db.alerts.find({"acknowledged": False}, {"_id": 0}).sort("created_at", -1)
+        if offset:
+            cursor = cursor.skip(offset)
+        if limit is not None:
+            cursor = cursor.limit(limit)
+        return list(cursor), total
+
+    def page_suppliers(
+        self,
+        *,
+        offset: int = 0,
+        limit: int | None = 10,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return supplier aggregates, busiest first. One page = `limit` companies."""
+        match: dict[str, Any] = {}
+        created: dict[str, Any] = {}
+        if start:
+            created["$gte"] = datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
+        if end:
+            created["$lt"] = datetime.fromisoformat(end).replace(tzinfo=timezone.utc) + timedelta(days=1)
+        if created:
+            match["$or"] = [
+                {"created_at": created},
+                {"created_at": {"$exists": False}, "updated_at": created},
+            ]
+
+        rank: list[dict[str, Any]] = []
+        if match:
+            rank.append({"$match": match})
+        rank.extend([
+            {"$group": {"_id": {"$ifNull": ["$supplier", "unknown"]}, "n": {"$sum": 1}}},
+            {"$sort": {"n": -1, "_id": 1}},
+        ])
+        counted = list(self.db.orders.aggregate(rank + [{"$count": "n"}]))
+        total = int((counted[0] or {}).get("n") or 0) if counted else 0
+        named = list(self.db.orders.aggregate([
+            *rank,
+            {"$skip": offset},
+            *( [{"$limit": limit}] if limit is not None else [] ),
+        ]))
+        names = [row["_id"] for row in named]
+        if not names:
+            return [], total
+
+        day_match: dict[str, Any] = {"supplier": {"$in": names}}
+        if match:
+            day_match = {"$and": [day_match, match]}
+        grouped = list(self.db.orders.aggregate([
+            {"$match": day_match},
+            {"$group": {
+                "_id": {
+                    "supplier": {"$ifNull": ["$supplier", "unknown"]},
+                    "day": {
+                        "$dateToString": {
+                            "format": "%Y-%m-%d",
+                            "date": {"$ifNull": ["$created_at", "$updated_at"]},
+                            "timezone": "UTC",
+                        }
+                    },
+                    "status": "$status",
+                },
+                "n": {"$sum": 1},
+            }},
+        ]))
+        by_name: dict[str, dict[str, dict[str, int]]] = {name: {} for name in names}
+        for row in grouped:
+            key = row.get("_id") or {}
+            supplier = key.get("supplier") or "unknown"
+            day = key.get("day") or "unknown"
+            status = key.get("status") or "pending_match"
+            days = by_name.setdefault(supplier, {})
+            bucket = days.setdefault(day, {"pending_clarification": 0, "committed": 0, "flagged": 0})
+            if status in bucket:
+                bucket[status] += int(row.get("n") or 0)
+        suppliers = [{"name": name, "days": by_name.get(name) or {}} for name in names]
+        return suppliers, total
 
     def stale_open_clarifications(self, older_than) -> list[dict[str, Any]]:
         return list(self.db.clarifications.find({
@@ -451,6 +613,109 @@ class Store:
                 if hasattr(event.get("t"), "isoformat"):
                     event["t"] = event["t"].isoformat()
         return rows
+
+    COLLECTIONS = (
+        "workers",
+        "source_documents",
+        "voice_events",
+        "orders",
+        "clarifications",
+        "alerts",
+        "shift_logs",
+        "pipeline_events",
+        "investigations",
+    )
+
+    def wipe(self) -> None:
+        for name in self.COLLECTIONS:
+            self.db[name].delete_many({})
+        self._ensure_indexes()
+
+    def set_fields(self, collection: str, query: dict[str, Any], fields: dict[str, Any]) -> None:
+        if not fields:
+            return
+        self.db[collection].update_many(query, {"$set": fields})
+
+    def insert_pending_match_order(
+        self,
+        *,
+        worker_id: str,
+        po_id: str,
+        bol_id: str | None,
+        slip_id: str | None,
+        item: str | None,
+        sku: str | None,
+        quantity_expected: Any,
+        quantity_received: Any,
+        unit: str | None,
+        lot_code: str | None,
+        supplier: str | None,
+        actor: str = "seed",
+    ) -> dict[str, Any]:
+        now = _now()
+        order_id = _slug(po_id, item)
+        papers_vs_slip = (
+            "match" if quantity_expected == quantity_received else (
+                "missing" if quantity_received is None else "mismatch"
+            )
+        )
+        order = {
+            "order_id": order_id,
+            "po_id": po_id,
+            "bol_id": bol_id,
+            "slip_id": slip_id,
+            "worker_id": worker_id,
+            "item": item,
+            "sku": sku,
+            "quantity_expected": quantity_expected,
+            "quantity_received": quantity_received,
+            "unit": unit,
+            "quality": None,
+            "lot_code": lot_code,
+            "supplier": supplier,
+            "temperature": None,
+            "status": "pending_match",
+            "match": {
+                "po_vs_bol": "match",
+                "bol_vs_slip": papers_vs_slip,
+                "papers_vs_slip": papers_vs_slip,
+                "slip_vs_voice": "missing",
+                "mismatches": [],
+            },
+            "time_process_started": now,
+            "time_process_finished": None,
+            "voice_event_ids": [],
+            "clarification_ids": [],
+            "flag_reason": None,
+            "flagged_by": None,
+            "updated_at": now,
+            "created_at": now,
+        }
+        self.db.orders.update_one({"order_id": order_id}, {"$set": order}, upsert=True)
+        self.emit("order_upserted", "database", actor, "orders", order_id, {
+            "status": "pending_match",
+            "quantity_received": quantity_received,
+            "quantity_expected": quantity_expected,
+            "item": item,
+        })
+        return order
+
+    def backdate_pipeline_events(self) -> None:
+        times: dict[tuple[str, str], Any] = {}
+        for doc in self.db.source_documents.find():
+            times[("source_documents", doc.get("doc_id"))] = doc.get("received_at")
+        for doc in self.db.voice_events.find():
+            times[("voice_events", doc.get("event_id"))] = doc.get("time_start")
+        for doc in self.db.orders.find():
+            times[("orders", doc.get("order_id"))] = doc.get("updated_at")
+        for doc in self.db.clarifications.find():
+            times[("clarifications", doc.get("clarification_id"))] = doc.get("answered_at") or doc.get("asked_at")
+        for doc in self.db.alerts.find():
+            times[("alerts", doc.get("alert_id"))] = doc.get("created_at")
+        for row in self.db.pipeline_events.find():
+            when = times.get((row.get("collection"), row.get("entity_id")))
+            if when is not None:
+                self.db.pipeline_events.update_one({"_id": row["_id"]}, {"$set": {"t": when}})
 
     def work_snapshot(self) -> dict[str, Any]:
         pending = [

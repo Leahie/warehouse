@@ -13,7 +13,7 @@ Matcher compares on-file PO + BOL against the packing slip, not a fourth invente
 
 **0:50 — Confirm, then leave**
 Worker: "yeah that's right, only 40 on the pallet, not 50."
-API `POST /clarifications/CLQ-RCV-PO-4419-ROM/answer` with `confirm_discrepancy`. Dock row turns red. Alert `ALT-RCV-PO-4419-ROM` appears. Strawberries packing slip matches PO-4420 / BOL-8822 (20/20) so that line stays committed.
+API `POST /clarifications/CLQ-RCV-4419-ROM/answer` with `confirm_discrepancy`. Dock row turns red. Alert `ALT-RCV-4419-ROM` appears. Strawberries packing slip matches PO-4420 / BOL-8822 (20/20) so that line stays committed.
 
 **1:20 — Walk away**
 Do not type a second prompt. OpenClaw heartbeat `GET /work` then `POST /heartbeat` every few minutes. Stale unanswered clarifications become alerts. Shift log compiles item/qty vectors.

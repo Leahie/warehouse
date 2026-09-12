@@ -59,21 +59,34 @@ export function toOrderRow(o: ApiOrder): OrderRow {
 
 const SEVERITIES: AlertSeverity[] = ["critical", "warning", "info"];
 
-/** Alerts carry only a reason; lot code and supplier are joined from the order. */
+function itemFromSummary(summary: string | null | undefined): string | null {
+  const match = summary?.match(/([A-Za-z][A-Za-z ]{1,40}):\s*received/i);
+  return match ? match[1].trim() : null;
+}
+
+/** Alerts carry only a reason; lot code, supplier, and item are joined from the order when present. */
 export function toAlertCard(a: ApiAlert, orders: ApiOrder[]): AlertCard {
   const order = orders.find((o) => o.order_id === a.order_id);
   const mismatch = order?.match?.mismatches?.find((m) => m.field === "quantity");
   const detail = mismatch
     ? ` Paperwork expected ${mismatch.po ?? mismatch.bol}, dock recorded ${mismatch.slip}.`
     : "";
+  const item =
+    order?.item || a.item || itemFromSummary(a.ai_summary) || "Unknown item";
+  const supplier = order?.supplier || a.supplier || "unknown";
+  const lot_code = order?.lot_code || a.lot_code || "";
+  const ai_summary =
+    a.ai_summary ||
+    `${item !== "Unknown item" ? `${item}: ` : ""}${a.reason}.${detail}`.replace(/\.\./g, ".");
   return {
     alert_id: a.alert_id,
     order_id: a.order_id,
+    item,
     reason: a.reason,
-    ai_summary: `${order?.item ? `${order.item}: ` : ""}${a.reason}.${detail}`.replace(/\.\./g, "."),
+    ai_summary,
     created_at: a.created_at,
-    lot_code: order?.lot_code ?? "",
-    supplier: order?.supplier ?? "unknown",
+    lot_code,
+    supplier,
     severity: SEVERITIES.includes(a.severity as AlertSeverity)
       ? (a.severity as AlertSeverity)
       : "warning",
@@ -119,7 +132,7 @@ function textOf(e: ApiEvent): string {
   return `${e.kind.replace(/_/g, " ")}${e.entity_id ? ` (${e.entity_id})` : ""}`;
 }
 
-/** CLQ-RCV-PO-4419-ROM -> RCV-PO-4419-ROM */
+/** CLQ-RCV-4419-ROM -> RCV-4419-ROM */
 function orderIdFromClarification(entityId: string | undefined): string | null {
   return entityId?.startsWith("CLQ-") ? entityId.slice(4) : null;
 }

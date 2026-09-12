@@ -188,8 +188,11 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             "event_id": doc["event_id"], "order": order, "mode": "clarification_answer",
             "reply": _reply_text(store, "clarification_answer", order, parsed),
         }
-    candidates = store.find_candidates(parsed)
-    po_id, offer = decide(candidates)
+    po_id = doc.get("po_id") or parsed.get("po_id")
+    offer: list = []
+    if not po_id:
+        candidates = store.find_candidates(parsed)
+        po_id, offer = decide(candidates)
     if not po_id:
         if offer:
             # Enough was heard to narrow it down, just not to settle it.
