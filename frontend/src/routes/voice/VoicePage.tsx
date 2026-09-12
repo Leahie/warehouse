@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import voiceData from "@/assets/data/voice_sessions.json";
 import alertsData from "@/assets/data/alerts.json";
 import { ChatBubble } from "@/components/voice/ChatBubble";
@@ -42,28 +42,34 @@ function newBlankSession(): VoiceSession {
 
 export function VoicePage() {
   const [searchParams] = useSearchParams();
-  const [sessions, setSessions] = useState<VoiceSession[]>([]);
+  const { sessionId: routeSessionId } = useParams();
+  const navigate = useNavigate();
+  // Three layers, kept apart so a 4-second poll cannot wipe local work:
+  //   liveSessions  derived from the API, replaced wholesale on every poll
+  //   localSessions created in the browser (a blank log, an alert drill-down)
+  //   overrides     local edits to any session, which win over the live copy
+  const [localSessions, setLocalSessions] = useState<VoiceSession[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, VoiceSession>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions);
 
-  // Fold server-derived sessions in on every poll without discarding sessions
-  // created locally (a live recording, or one opened from an alert). Seeded
-  // demo sessions drop out as soon as the API returns anything real.
-  useEffect(() => {
-    setSessions((prev) => {
-      const liveIds = new Set(liveSessions.map((s) => s.session_id));
-      const localOnly = prev.filter(
-        (s) => !liveIds.has(s.session_id) && !seedIds.has(s.session_id),
-      );
-      return [...localOnly, ...liveSessions];
-    });
-  }, [liveSessions]);
+  const sessions = useMemo(() => {
+    const liveIds = new Set(liveSessions.map((s) => s.session_id));
+    const localOnly = localSessions.filter(
+      (s) => !liveIds.has(s.session_id) && !seedIds.has(s.session_id),
+    );
+    return [...localOnly, ...liveSessions].map((s) => overrides[s.session_id] ?? s);
+  }, [liveSessions, localSessions, overrides]);
 
   // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
   const mic = useDockMic({
     onTurn: (turn) => {
       // Jump to the order this turn touched so the transcript is on screen.
-      if (turn.order?.order_id) setSelectedId(`VS-${turn.order.order_id}`);
+      if (turn.order?.order_id) {
+        const id = `VS-${turn.order.order_id}`;
+        setSelectedId(id);
+        navigate(`/voice/${encodeURIComponent(id)}`);
+      }
     },
   });
 
@@ -95,6 +101,7 @@ export function VoicePage() {
       if (match) {
         appliedDeepLink.current = key;
         setSelectedId(match.session_id);
+        navigate(`/voice/${encodeURIComponent(match.session_id)}`, { replace: true });
         return;
       }
 
@@ -124,7 +131,7 @@ export function VoicePage() {
           ],
         };
         appliedDeepLink.current = key;
-        setSessions((prev) => [created, ...prev]);
+        setLocalSessions((prev) => [created, ...prev]);
         setSelectedId(created.session_id);
       }
     }
@@ -135,16 +142,15 @@ export function VoicePage() {
     return live?.session_id ?? sessions[0]?.session_id ?? null;
   }, [sessions]);
 
-  const currentId = selectedId ?? activeLiveId;
+  // The URL owns the selection so a conversation can be linked and reloaded.
+  const currentId = routeSessionId ?? selectedId ?? activeLiveId;
   const current = sessions.find((s) => s.session_id === currentId) ?? null;
 
   function playDemoStep() {
     if (!current || current.stage === "done") return;
 
-    setSessions((prev) =>
-      prev.map((session) => {
-        if (session.session_id !== current.session_id) return session;
-
+    setOverrides((prev) => {
+      const advanced = ((session: VoiceSession): VoiceSession => {
         if (session.stage === "parsing") {
           const withoutSpeaking = session.messages.filter((m) => m.state !== "speaking");
           return {
@@ -231,23 +237,14 @@ export function VoicePage() {
             },
           ],
         };
-      }),
-    );
-
-    setSessions((prev) => {
-      const currentSession = prev.find((s) => s.session_id === current.session_id);
-      if (currentSession?.stage === "done" && !prev.some((s) => s.stage !== "done")) {
-        const blank = newBlankSession();
-        setSelectedId(blank.session_id);
-        return [...prev, blank];
-      }
-      return prev;
+      })(current);
+      return { ...prev, [current.session_id]: advanced };
     });
   }
 
   function startNextLog() {
     const blank = newBlankSession();
-    setSessions((prev) => [blank, ...prev]);
+    setLocalSessions((prev) => [blank, ...prev]);
     setSelectedId(blank.session_id);
   }
 
@@ -256,7 +253,10 @@ export function VoicePage() {
       <VoiceSidebar
         sessions={sessions}
         activeId={currentId}
-        onSelect={(id) => setSelectedId(id)}
+        onSelect={(id) => {
+          setSelectedId(id);
+          navigate(`/voice/${encodeURIComponent(id)}`);
+        }}
       />
 
       <div className="page-pad flex min-h-0 min-w-0 flex-1 flex-col gap-4">
