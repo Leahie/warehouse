@@ -223,102 +223,6 @@ export function VoicePage() {
     currentIdRef.current = currentId;
   }, [current, currentId]);
 
-  function playDemoStep() {
-    if (!current || current.stage === "done") return;
-
-    setOverrides((prev) => {
-      const advanced = ((session: VoiceSession): VoiceSession => {
-        if (session.stage === "parsing") {
-          const withoutSpeaking = session.messages.filter((m) => m.state !== "speaking");
-          return {
-            ...session,
-            stage: "confirming",
-            messages: [
-              ...withoutSpeaking,
-              {
-                id: `u-${Date.now()}`,
-                role: "user",
-                text: "receiving 24 flats strawberries, lot S4410, Berry Grove",
-                state: "parsed",
-                at: new Date().toISOString(),
-              },
-              {
-                id: `s-${Date.now() + 1}`,
-                role: "system",
-                text: "Confirming…",
-                at: new Date().toISOString(),
-              },
-              {
-                id: `a-${Date.now() + 2}`,
-                role: "agent",
-                text: "BoL says 24 flats, packing slip says 20. Can you confirm the count on the dock?",
-                at: new Date().toISOString(),
-              },
-            ],
-          };
-        }
-
-        if (session.stage === "confirming") {
-          return {
-            ...session,
-            stage: "correction",
-            messages: [
-              ...session.messages,
-              {
-                id: `s-${Date.now()}`,
-                role: "system",
-                text: "Correction…",
-                at: new Date().toISOString(),
-              },
-              {
-                id: `u-${Date.now() + 1}`,
-                role: "user",
-                text: "packing slip is wrong — there are 24 on the pallet",
-                state: "parsed",
-                at: new Date().toISOString(),
-              },
-            ],
-          };
-        }
-
-        if (session.stage === "correction") {
-          return {
-            ...session,
-            stage: "logging_data",
-            messages: [
-              ...session.messages,
-              {
-                id: `s-${Date.now()}`,
-                role: "system",
-                text: "Logging data…",
-                at: new Date().toISOString(),
-              },
-            ],
-          };
-        }
-
-        const summary =
-          "24 flats strawberries, lot S4410, Berry Grove — slip mismatch noted, worker confirmed 24.";
-        return {
-          ...session,
-          stage: "done",
-          is_alert: true,
-          summary,
-          messages: [
-            ...session.messages,
-            {
-              id: `a-${Date.now()}`,
-              role: "agent",
-              text: `Summary: ${summary}`,
-              at: new Date().toISOString(),
-            },
-          ],
-        };
-      })(current);
-      return { ...prev, [current.session_id]: advanced };
-    });
-  }
-
   /** Open an empty conversation that is not attached to any order on file. */
   function openScratch() {
     setFocusedId(null);
@@ -377,15 +281,6 @@ export function VoicePage() {
           </div>
 
           <div className="border-core flex flex-wrap items-center justify-between gap-3 border-t bg-core-surface px-4 py-3">
-            <button
-              type="button"
-              className="text-body2-heavy rounded-small bg-brand-green px-4 py-2 text-on-brand transition-opacity disabled:opacity-40"
-              disabled={!current || current.stage === "done"}
-              onClick={playDemoStep}
-            >
-              Play demo step
-            </button>
-
             <div className="flex w-full items-center gap-3 border-t border-core pt-3">
               <button
                 type="button"
