@@ -131,7 +131,11 @@ def investigation(investigation_id: str):
 
 
 @app.post("/api/audio")
-async def audio(file: UploadFile = File(...), worker_id: str = Form("W-17")):
+async def audio(
+    file: UploadFile = File(...),
+    worker_id: str = Form("W-17"),
+    context_order_id: str | None = Form(None),
+):
     data = await file.read()
     if not data:
         raise HTTPException(400, "empty audio")
@@ -149,6 +153,7 @@ async def audio(file: UploadFile = File(...), worker_id: str = Form("W-17")):
         "parsed": None,
         "actor": "dock-mic",
         "ingest_channel": "browser_mic",
+        "context_order_id": context_order_id or None,
     }
     result = ingest_voice_doc(store, doc)
     result["utterance"] = utterance

@@ -17,6 +17,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 # Lot codes are unique per receipt, so hearing one is effectively decisive.
+W_PO = 120
 W_LOT = 100
 W_SKU = 60
 W_ITEM = 25
@@ -56,6 +57,11 @@ def score_document(parsed: dict[str, Any], doc: dict[str, Any]) -> tuple[int, li
     """Score one source document against a parsed utterance. Returns (score, why)."""
     score = 0
     why: list[str] = []
+
+    heard_po = norm_code(parsed.get("po_id"))
+    if heard_po and norm_code(doc.get("po_id")) == heard_po:
+        score += W_PO
+        why.append(f"po {doc.get('po_id')}")
 
     heard_lot = norm_code(parsed.get("lot_code"))
     heard_item = norm(parsed.get("item"))

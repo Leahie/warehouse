@@ -69,6 +69,8 @@ export function VoicePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // The mic callback runs long after render, so it reads sessions through a ref.
   const sessionsRef = useRef<VoiceSession[]>([]);
+  // The order the worker is looking at, sent with each recording.
+  const currentOrderRef = useRef<string | null>(null);
   const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions);
 
   const sessions = useMemo(() => {
@@ -85,6 +87,7 @@ export function VoicePage() {
 
   // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
   const mic = useDockMic({
+    contextOrderId: currentOrderRef.current,
     onTurn: (turn) => {
       const targetId = turn.order?.order_id ? `VS-${turn.order.order_id}` : SCRATCH_ID;
       const now = new Date().toISOString();
@@ -202,6 +205,10 @@ export function VoicePage() {
   const currentId = routeSessionId ?? selectedId ?? activeLiveId;
   const current = sessions.find((s) => s.session_id === currentId) ?? null;
 
+  useEffect(() => {
+    currentOrderRef.current = current?.order_id ?? null;
+  }, [current]);
+
   function playDemoStep() {
     if (!current || current.stage === "done") return;
 
@@ -299,9 +306,11 @@ export function VoicePage() {
   }
 
   function startNextLog() {
+    // The URL owns the selection, so this has to navigate or nothing moves.
     const blank = newBlankSession();
     setLocalSessions((prev) => [blank, ...prev]);
     setSelectedId(blank.session_id);
+    navigate(`/voice/${encodeURIComponent(blank.session_id)}`);
   }
 
   /** Open an empty conversation that is not attached to any order on file. */

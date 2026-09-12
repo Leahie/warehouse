@@ -26,12 +26,24 @@ def _read(path: Path) -> dict:
 
 # A reply to an open clarification is short and has no PO in it, so the receive
 # parser cannot recognise it. Detect the two answers the dock actually gives.
+# Note the grouping: confirm(?:s|ed|ing)? -- an earlier `confirmed?` only ever
+# matched "confirme"/"confirmed", so a worker saying "I can confirm" was ignored.
 _CONFIRM_RE = re.compile(
-    r"\b(yes|yeah|yep|yup|correct|that'?s right|thats right|confirmed?|affirmative)\b",
+    r"\b("
+    r"yes|yeah|yep|yup|yup|uh[- ]?huh|mm[- ]?hm"
+    r"|correct|right|true|accurate"
+    r"|that'?s (?:right|correct|it)|thats (?:right|correct|it)"
+    r"|confirm(?:s|ed|ing)?|affirmative"
+    r"|sure|ok|okay|go ahead|sounds right|looks right"
+    r")\b",
     re.I,
 )
 _CORRECT_RE = re.compile(
-    r"\b(actually|no it'?s|make it|should be|change it to|i meant|scratch that)\b",
+    r"\b("
+    r"actually|no[, ]+it(?:'?s| is)|no[, ]+its|not quite|nope"
+    r"|make it|should be|change it to|correct it to|i meant|scratch that"
+    r"|it'?s really|it is really"
+    r")\b",
     re.I,
 )
 
@@ -69,6 +81,10 @@ def crude_parse(utterance: str) -> dict:
     supplier = re.search(r"\bfrom\s+([A-Za-z0-9][A-Za-z0-9 .'&-]+)", text, re.I)
     if not supplier:
         supplier = re.search(r",\s*([A-Z][A-Za-z0-9 .'&-]{3,})\.?\s*$", text.strip())
+    # "PO-5014", "PO5014", "P.O. 5014", "purchase order 5014". The agent reads
+    # PO numbers out when it offers a shortlist, so workers answer with one.
+    po = re.search(r"\b(?:p\.?\s?o\.?|purchase\s+order)[\s#:-]*(\d{3,6})\b", text, re.I)
+
     # "receiving 42 cases of cauliflower" and the bare "42 cases of cauliflower"
     item = re.search(r"\d+\s+(?:cases?|pallets?|units?|boxes?|box)\s+of\s+([A-Za-z]+)", text, re.I)
     if not item:
@@ -91,6 +107,7 @@ def crude_parse(utterance: str) -> dict:
         "quantity": int(qty.group(1)) if qty else None,
         "unit": (qty.group(2).lower() if qty else None),
         "lot_code": lot_code,
+        "po_id": (f"PO-{po.group(1)}" if po else None),
         "supplier": clean(supplier.group(1)) if supplier else None,
         "temperature": {"value": None, "unit": None},
         "in_reply_to": None,
@@ -175,7 +192,11 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
     if not reply_to:
         spoken_intent = answer_intent(doc.get("utterance") or "")
         if spoken_intent:
-            clq = store.latest_open_clarification(doc.get("worker_id"))
+            # The browser tells us which conversation is open on screen, which
+            # beats inferring it: "yes" is meaningless without that context.
+            clq = store.open_clarification_for_order(doc.get("context_order_id"))
+            if not clq:
+                clq = store.latest_open_clarification(doc.get("worker_id"))
             if clq:
                 reply_to = clq["clarification_id"]
                 parsed["intent"] = spoken_intent

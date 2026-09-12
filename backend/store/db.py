@@ -111,7 +111,9 @@ class Store:
         order. Ranking lives in match.resolve; this only supplies documents.
         """
         parsed = parsed or {}
-        if not any(parsed.get(k) for k in ("lot_code", "item", "supplier", "sku", "quantity")):
+        if not any(
+            parsed.get(k) for k in ("po_id", "lot_code", "item", "supplier", "sku", "quantity")
+        ):
             return []
         docs = list(self.db.source_documents.find({}, {"_id": 0}))
         return resolve.rank(parsed, docs)
@@ -403,6 +405,13 @@ class Store:
     def get_investigation(self, investigation_id: str) -> dict[str, Any] | None:
         return self.db.investigations.find_one({"investigation_id": investigation_id}, {"_id": 0})
 
+    def open_clarification_for_order(self, order_id: str | None) -> dict[str, Any] | None:
+        if not order_id:
+            return None
+        return self.db.clarifications.find_one(
+            {"order_id": order_id, "status": "open"}, {"_id": 0}
+        )
+
     def latest_open_clarification(self, worker_id: str | None = None) -> dict[str, Any] | None:
         """The question a worker is most plausibly answering right now.
 
@@ -422,6 +431,20 @@ class Store:
             ]
             for lot in lots:
                 order = self.db.orders.find_one({"lot_code": lot}, {"_id": 0})
+                if not order:
+                    # Spoken lot codes lose their punctuation: match on the
+                    # alphanumerics alone before giving up.
+                    target = resolve.norm_code(lot)
+                    order = next(
+                        (
+                            o
+                            for o in self.db.orders.find(
+                                {"lot_code": {"$ne": None}}, {"_id": 0}
+                            )
+                            if resolve.norm_code(o.get("lot_code")) == target
+                        ),
+                        None,
+                    )
                 if not order:
                     continue
                 clq = self.db.clarifications.find_one(
