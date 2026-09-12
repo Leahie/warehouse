@@ -11,7 +11,7 @@ export function VoiceSidebar({ sessions, activeId, onSelect }: Props) {
   const archived = sessions.filter((s) => s.stage === "done");
 
   return (
-    <aside className="border-core flex w-72 shrink-0 flex-col border-r bg-core-surface">
+    <aside className="border-core flex min-h-0 w-72 shrink-0 flex-col border-r bg-core-surface">
       <div className="border-core flex items-center justify-between border-b px-4 py-3">
         <span className="text-h5-default text-primary font-semibold">Voice Logs</span>
         <span className="text-body3-default text-tertiary">{sessions.length} total</span>

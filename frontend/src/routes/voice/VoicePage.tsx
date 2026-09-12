@@ -247,7 +247,7 @@ export function VoicePage() {
         onSelect={(id) => setSelectedId(id)}
       />
 
-      <div className="page-pad flex min-w-0 flex-1 flex-col gap-4">
+      <div className="page-pad flex min-h-0 min-w-0 flex-1 flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-h1-default text-primary m-0">Voice Visualizer</h1>

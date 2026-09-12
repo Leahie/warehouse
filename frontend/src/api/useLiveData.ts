@@ -11,6 +11,10 @@ import type { LogsAggregateFile } from "@/types/logs";
 
 const POLL_MS = Number(import.meta.env.VITE_POLL_MS ?? 4000);
 
+// The dock accumulates thousands of voice events over a shift. The sidebar only
+// ever shows recent activity, so cap it rather than rendering every session.
+const MAX_SESSIONS = Number(import.meta.env.VITE_MAX_SESSIONS ?? 60);
+
 export type Live<T> = {
   data: T;
   /** true once a real API response has been applied */
@@ -85,7 +89,8 @@ export function useVoiceSessions(fallback: VoiceSession[]): Live<VoiceSession[]>
     async (s) => ({ events: await fetchEvents("voice", s), orders: await fetchOrders(s) }),
   );
   return useMemo(() => {
-    const sessions = value ? toVoiceSessions(value.events, value.orders) : null;
+    const all = value ? toVoiceSessions(value.events, value.orders) : null;
+    const sessions = all ? all.slice(0, MAX_SESSIONS) : null;
     return {
       // An empty event stream is a valid live answer, but the demo reads better
       // seeded, so fall back until the dock actually says something.
