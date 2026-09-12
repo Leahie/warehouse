@@ -8,6 +8,8 @@ from typing import Any
 
 from pymongo import ASCENDING, MongoClient, ReturnDocument
 
+from match import resolve
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -101,20 +103,23 @@ class Store:
             out[doc.get("doc_type")] = doc
         return out
 
-    def find_po_id(self, parsed: dict[str, Any] | None) -> str | None:
+    def find_candidates(self, parsed: dict[str, Any] | None) -> list[dict[str, Any]]:
+        """Purchase orders the worker might have meant, best first.
+
+        Scores every document rather than filtering on exact equality, so a
+        half-heard line ("lot C5217-15", supplier missed) still identifies its
+        order. Ranking lives in match.resolve; this only supplies documents.
+        """
         parsed = parsed or {}
-        supplier = (parsed.get("supplier") or "").strip().casefold()
-        item = (parsed.get("item") or "").strip().casefold()
-        if not item and not supplier:
-            return None
-        for doc in self.db.source_documents.find({"doc_type": "purchase_order"}):
-            if supplier and (doc.get("supplier") or "").strip().casefold() != supplier:
-                continue
-            lines = doc.get("lines") or []
-            if item and not any((line.get("item") or "").strip().casefold() == item for line in lines):
-                continue
-            return doc.get("po_id") or doc.get("doc_id")
-        return None
+        if not any(parsed.get(k) for k in ("lot_code", "item", "supplier", "sku", "quantity")):
+            return []
+        docs = list(self.db.source_documents.find({}, {"_id": 0}))
+        return resolve.rank(parsed, docs)
+
+    def find_po_id(self, parsed: dict[str, Any] | None) -> str | None:
+        """The single order we are confident about, or None to ask."""
+        po_id, _ = resolve.decide(self.find_candidates(parsed))
+        return po_id
 
     def apply_match(
         self,

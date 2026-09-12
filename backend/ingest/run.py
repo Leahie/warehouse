@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from match.matcher import match_receipt
+from match.resolve import decide
 from store.db import Store
 
 INBOX = ROOT / "data" / "inbox"
@@ -46,18 +47,51 @@ def answer_intent(utterance: str) -> str | None:
 
 
 def crude_parse(utterance: str) -> dict:
+    """Pull what we can out of a spoken line. Every field is best-effort.
+
+    Workers do not speak in a fixed grammar and Whisper drops words, so each
+    pattern is written to fire on the shortest plausible phrasing. Anything not
+    heard stays None and the resolver scores on whatever remains.
+    """
     text = utterance or ""
-    qty = re.search(r"(\d+)\s+(cases|case|pallets|pallet|units|unit)", text, re.I)
-    lot = re.search(r"lot\s+([A-Za-z0-9-]+)", text, re.I)
-    supplier = re.search(r"from\s+([A-Za-z0-9][A-Za-z0-9 .'-]+)", text, re.I)
-    item = re.search(r"(?:of|receiving)\s+\d+\s+\w+\s+(?:of\s+)?([a-z]+)", text, re.I)
+    qty = re.search(r"(\d+)\s+(cases|case|pallets|pallet|units|unit|boxes|box)", text, re.I)
+    # "lot C5217-15", "lot number C5217 15", "lot: C-5217"
+    # A lot code is one token, or two when spoken as "C5217 15". Stop before a
+    # following clause, or the match swallows "... from Pacific Pack 5".
+    lot = re.search(
+        r"lot\s*(?:code|number|no\.?|#)?[:\s]\s*"
+        r"([A-Za-z0-9][A-Za-z0-9-]*(?:\s+(?!from\b|at\b|in\b|on\b|for\b|of\b)\d[A-Za-z0-9-]*)?)",
+        text,
+        re.I,
+    )
+    # "from Pacific Pack 5" -- but also a bare trailing name, as in
+    # "42 cases of cauliflower, lot C5217-15, Pacific Pac 5."
+    supplier = re.search(r"\bfrom\s+([A-Za-z0-9][A-Za-z0-9 .'&-]+)", text, re.I)
+    if not supplier:
+        supplier = re.search(r",\s*([A-Z][A-Za-z0-9 .'&-]{3,})\.?\s*$", text.strip())
+    # "receiving 42 cases of cauliflower" and the bare "42 cases of cauliflower"
+    item = re.search(r"\d+\s+(?:cases?|pallets?|units?|boxes?|box)\s+of\s+([A-Za-z]+)", text, re.I)
+    if not item:
+        item = re.search(r"(?:receiving|received|got|unloading)\s+(?:\d+\s+\w+\s+of\s+)?([A-Za-z]+)", text, re.I)
+
+    def clean(value: str | None) -> str | None:
+        if not value:
+            return None
+        out = value.strip().strip(".,;:").strip()
+        return out or None
+
+    lot_code = clean(lot.group(1) if lot else None)
+    if lot_code:
+        # "C5217 15" and "C5217-15" are the same code spoken two ways.
+        lot_code = re.sub(r"\s+", "-", lot_code)
+
     return {
         "intent": "receive",
-        "item": (item.group(1).strip().lower() if item else None),
+        "item": (clean(item.group(1)).lower() if item and clean(item.group(1)) else None),
         "quantity": int(qty.group(1)) if qty else None,
         "unit": (qty.group(2).lower() if qty else None),
-        "lot_code": (lot.group(1) if lot else None),
-        "supplier": (supplier.group(1).strip() if supplier else None),
+        "lot_code": lot_code,
+        "supplier": clean(supplier.group(1)) if supplier else None,
         "temperature": {"value": None, "unit": None},
         "in_reply_to": None,
     }
@@ -70,6 +104,25 @@ def _mark(path: Path) -> None:
     if dest.exists():
         return
     dest.write_text(path.read_text())
+
+
+def _offer_text(parsed: dict, candidates: list[dict]) -> str:
+    """Read the shortlist back to the worker instead of guessing or giving up."""
+    heard = [
+        f"{parsed['quantity']} {parsed.get('unit') or 'units'}" if parsed.get("quantity") else None,
+        parsed.get("item"),
+        f"lot {parsed['lot_code']}" if parsed.get("lot_code") else None,
+    ]
+    heard_txt = ", ".join(h for h in heard if h) or "that"
+    options = "; ".join(
+        f"{c['po_id']} from {c['supplier']}"
+        + (f", lot {c['lot_codes'][0]}" if c.get("lot_codes") else "")
+        for c in candidates[:3]
+    )
+    return (
+        f"I heard {heard_txt}, but I could not tell which delivery you mean. "
+        f"I have {options}. Which one is it? The lot code is enough."
+    )
 
 
 def _reply_text(store: Store, mode: str, order: dict | None, parsed: dict) -> str:
@@ -135,8 +188,16 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             "event_id": doc["event_id"], "order": order, "mode": "clarification_answer",
             "reply": _reply_text(store, "clarification_answer", order, parsed),
         }
-    po_id = store.find_po_id(parsed)
+    candidates = store.find_candidates(parsed)
+    po_id, offer = decide(candidates)
     if not po_id:
+        if offer:
+            # Enough was heard to narrow it down, just not to settle it.
+            return {
+                "event_id": doc["event_id"], "order": None, "mode": "ambiguous",
+                "candidates": offer,
+                "reply": _offer_text(parsed, offer),
+            }
         return {
             "event_id": doc["event_id"], "order": None, "mode": "unmatched",
             "reply": _reply_text(store, "unmatched", None, parsed),
