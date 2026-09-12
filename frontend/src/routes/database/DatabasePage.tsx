@@ -7,10 +7,9 @@ import {
 } from "@/components/database/FilterPopover";
 import { SearchableDropdown } from "@/components/database/SearchableDropdown";
 import { StatusChip } from "@/components/database/StatusChip";
-import { InfiniteSentinel } from "@/components/InfiniteSentinel";
 import { industryFor } from "@/api/adapters";
 import type { OrderRow } from "@/types/order";
-import { useOrderFacets, useOrders } from "@/api/useLiveData";
+import { useExpectedReceipts, useOrderFacets, useProgress } from "@/api/useLiveData";
 
 const fallbackOrders = ordersData as OrderRow[];
 
@@ -72,12 +71,13 @@ function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
 }
 
 export function DatabasePage() {
-  const { data: orders, total, hasMore, loadMore, isLoading } = useOrders(fallbackOrders);
+  // Show what the warehouse is expecting, not only what has been received.
+  const { data: orders } = useExpectedReceipts(fallbackOrders);
   const facets = useOrderFacets();
+  const { data: progress } = useProgress();
   const [filters, setFilters] = useState<ColumnFilterState>({});
   const [draft, setDraft] = useState<ColumnFilterState>({});
   const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);
-  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
   const allIndustries = useMemo(() => {
     const set = new Set<string>();
@@ -146,6 +146,16 @@ export function DatabasePage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-h1-default text-primary m-0">Database Visualizer</h1>
+        {progress && (
+          <p className="text-body2-default text-secondary m-0 mt-1">
+            {progress.totals.lines_checked_in} of {progress.totals.lines_total} expected lines
+            checked in · {progress.totals.quantity_received}/{progress.totals.quantity_expected} units
+            ({progress.totals.percent_received}%)
+            {progress.totals.flagged_lines > 0 && (
+              <span className="text-negative"> · {progress.totals.flagged_lines} flagged</span>
+            )}
+          </p>
+        )}
           <p className="text-body3-default text-tertiary mt-1 mb-0">
             Real-time receipt ledger. Double-click any column header to filter.
           </p>
@@ -174,7 +184,7 @@ export function DatabasePage() {
           </span>
         </div>
         <span className="text-body3-default text-secondary">
-          Showing {rows.length} of {total || orders.length} orders
+            Showing {rows.length} of {orders.length} orders
         </span>
       </div>
 
@@ -210,7 +220,7 @@ export function DatabasePage() {
         </div>
       ) : null}
 
-      <div ref={setScroller} className="card-surface min-h-0 flex-1 overflow-auto">
+      <div className="card-surface min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-left">
           <thead className="bg-core-surface sticky top-0 z-10 border-b border-core shadow-sm">
             <tr>
@@ -341,12 +351,6 @@ export function DatabasePage() {
             )}
           </tbody>
         </table>
-        <InfiniteSentinel
-          root={scroller}
-          onVisible={loadMore}
-          disabled={!hasMore || isLoading}
-          label={hasMore ? "Loading more receipts…" : ""}
-        />
       </div>
     </section>
   );

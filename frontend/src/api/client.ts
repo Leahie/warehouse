@@ -63,6 +63,38 @@ export type ApiOrder = {
   } | null;
 };
 
+export type ApiExpectedReceipt = {
+  po_id: string;
+  bol_id?: string | null;
+  slip_id?: string | null;
+  supplier?: string | null;
+  item: string;
+  sku?: string | null;
+  quantity_po?: number | null;
+  quantity_bol?: number | null;
+  quantity_slip?: number | null;
+  order_id?: string | null;
+  status?: string | null;
+  receipt_status: string;
+  quantity_received?: number | null;
+  quantity_expected?: number | null;
+  quantity_outstanding?: number | null;
+  checked_in: boolean;
+  flag_reason?: string | null;
+};
+
+export type ApiProgress = {
+  totals: {
+    purchase_orders: number;
+    lines_total: number;
+    lines_checked_in: number;
+    quantity_expected: number;
+    quantity_received: number;
+    flagged_lines: number;
+    percent_received: number;
+  };
+};
+
 export type ApiAlert = {
   alert_id: string;
   order_id: string;
@@ -165,6 +197,9 @@ export const fetchSuppliersPage = (
   }>(`/suppliers?${q}`, s).then((d) => asPage(d.suppliers ?? [], d));
 };
 
+export const fetchExpected = (s?: AbortSignal) =>
+  getJson<{ papers: ApiExpectedReceipt[] }>("/papers", s).then((d) => d.papers ?? []);
+export const fetchProgress = (s?: AbortSignal) => getJson<ApiProgress>("/progress", s);
 export const fetchAlerts = (s?: AbortSignal) =>
   getJson<{ alerts: ApiAlert[] }>("/alerts?limit=0", s).then((d) => d.alerts ?? []);
 export const fetchEvents = (pane?: string, s?: AbortSignal) =>
