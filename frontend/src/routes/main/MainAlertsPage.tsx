@@ -13,7 +13,7 @@ function isWithinLastWeek(iso: string, now = Date.now()) {
 }
 
 export function MainAlertsPage() {
-  const { data: alerts, isLive } = useAlerts(fallbackAlerts);
+  const { data: alerts, isLive, isLoading } = useAlerts(fallbackAlerts);
   const weekly = alerts
     .filter((alert) => isWithinLastWeek(alert.created_at))
     .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -33,7 +33,9 @@ export function MainAlertsPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-        {weekly.length === 0 ? (
+        {isLoading ? (
+          <p className="text-body1-default text-secondary">Loading alerts…</p>
+        ) : weekly.length === 0 ? (
           <p className="text-body1-default text-secondary">No alerts in the last 7 days.</p>
         ) : (
           weekly.map((alert, index) => (

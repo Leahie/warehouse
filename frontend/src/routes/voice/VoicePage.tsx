@@ -42,9 +42,9 @@ function newBlankSession(): VoiceSession {
 
 export function VoicePage() {
   const [searchParams] = useSearchParams();
-  const [sessions, setSessions] = useState<VoiceSession[]>(seedSessions);
+  const [sessions, setSessions] = useState<VoiceSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: liveSessions } = useVoiceSessions(seedSessions);
+  const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions);
 
   // Fold server-derived sessions in on every poll without discarding sessions
   // created locally (a live recording, or one opened from an alert). Seeded
@@ -283,9 +283,13 @@ export function VoicePage() {
           ) : null}
 
           <div className="flex-1 space-y-2 overflow-y-auto p-4">
-            {current?.messages.map((message) => (
-              <ChatBubble key={message.id} message={message} />
-            ))}
+            {isLoading && !current ? (
+              <p className="text-body2-default text-secondary">Loading voice logs…</p>
+            ) : (
+              current?.messages.map((message) => (
+                <ChatBubble key={message.id} message={message} />
+              ))
+            )}
           </div>
 
           <div className="border-core flex flex-wrap items-center justify-between gap-3 border-t bg-core-surface px-4 py-3">

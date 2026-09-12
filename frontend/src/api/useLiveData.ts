@@ -19,13 +19,19 @@ export type Live<T> = {
   data: T;
   /** true once a real API response has been applied */
   isLive: boolean;
+  /** true until the first request settles, either way */
+  isLoading: boolean;
   error: string | null;
 };
 
 function usePoll<T>(load: (signal: AbortSignal) => Promise<T>, deps: unknown[] = []) {
-  const [state, setState] = useState<{ value: T | null; error: string | null }>({
+  // `settled` separates "still asking" from "asked and got nothing". Without it
+  // the fallback fixtures paint first and are then replaced by live data, which
+  // reads as the UI changing its mind.
+  const [state, setState] = useState<{ value: T | null; error: string | null; settled: boolean }>({
     value: null,
     error: null,
+    settled: false,
   });
   // Keep the loader in a ref so a new closure each render does not restart the timer.
   const loadRef = useRef(load);
@@ -38,10 +44,10 @@ function usePoll<T>(load: (signal: AbortSignal) => Promise<T>, deps: unknown[] =
     const tick = async () => {
       try {
         const value = await loadRef.current(controller.signal);
-        if (!cancelled) setState({ value, error: null });
+        if (!cancelled) setState({ value, error: null, settled: true });
       } catch (err) {
         if (cancelled || controller.signal.aborted) return;
-        setState((prev) => ({ ...prev, error: (err as Error).message }));
+        setState((prev) => ({ ...prev, error: (err as Error).message, settled: true }));
       }
     };
 
@@ -59,56 +65,66 @@ function usePoll<T>(load: (signal: AbortSignal) => Promise<T>, deps: unknown[] =
 }
 
 export function useOrders(fallback: OrderRow[]): Live<OrderRow[]> {
-  const { value, error } = usePoll<ApiOrder[]>((s) => fetchOrders(s));
+  const { value, error, settled } = usePoll<ApiOrder[]>((s) => fetchOrders(s));
   return useMemo(
     () => ({
-      data: value ? value.map(toOrderRow) : fallback,
+      data: value ? value.map(toOrderRow) : settled ? fallback : [],
       isLive: value !== null,
+      isLoading: !settled,
       error,
     }),
-    [value, error, fallback],
+    [value, error, settled, fallback],
   );
 }
 
 export function useAlerts(fallback: AlertCard[]): Live<AlertCard[]> {
-  const { value, error } = usePoll<{ alerts: ApiAlert[]; orders: ApiOrder[] }>(
+  const { value, error, settled } = usePoll<{ alerts: ApiAlert[]; orders: ApiOrder[] }>(
     async (s) => ({ alerts: await fetchAlerts(s), orders: await fetchOrders(s) }),
   );
   return useMemo(
     () => ({
-      data: value ? value.alerts.map((a) => toAlertCard(a, value.orders)) : fallback,
+      data: value
+        ? value.alerts.map((a) => toAlertCard(a, value.orders))
+        : settled
+          ? fallback
+          : [],
       isLive: value !== null,
+      isLoading: !settled,
       error,
     }),
-    [value, error, fallback],
+    [value, error, settled, fallback],
   );
 }
 
 export function useVoiceSessions(fallback: VoiceSession[]): Live<VoiceSession[]> {
-  const { value, error } = usePoll<{ events: ApiEvent[]; orders: ApiOrder[] }>(
+  const { value, error, settled } = usePoll<{ events: ApiEvent[]; orders: ApiOrder[] }>(
     async (s) => ({ events: await fetchEvents("voice", s), orders: await fetchOrders(s) }),
   );
   return useMemo(() => {
     const all = value ? toVoiceSessions(value.events, value.orders) : null;
     const sessions = all ? all.slice(0, MAX_SESSIONS) : null;
     return {
-      // An empty event stream is a valid live answer, but the demo reads better
-      // seeded, so fall back until the dock actually says something.
-      data: sessions && sessions.length ? sessions : fallback,
+      // An empty event stream is a valid live answer; only seed when the API
+      // could not be reached at all.
+      data: sessions && sessions.length ? sessions : settled ? fallback : [],
       isLive: value !== null,
+      isLoading: !settled,
       error,
     };
-  }, [value, error, fallback]);
+  }, [value, error, settled, fallback]);
 }
 
+const EMPTY_LOGS: LogsAggregateFile = { manufacturers: {} };
+
 export function useLogsAggregate(fallback: LogsAggregateFile): Live<LogsAggregateFile> {
-  const { value, error } = usePoll<ApiOrder[]>((s) => fetchOrders(s));
+  const { value, error, settled } = usePoll<ApiOrder[]>((s) => fetchOrders(s));
   return useMemo(
     () => ({
-      data: value && value.length ? toLogsAggregate(value) : fallback,
+      data: value && value.length ? toLogsAggregate(value) : settled ? fallback : EMPTY_LOGS,
       isLive: value !== null,
+      isLoading: !settled,
       error,
     }),
-    [value, error, fallback],
+    [value, error, settled, fallback],
   );
 }
