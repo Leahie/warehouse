@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from match.matcher import match_receipt
-from match.resolve import decide
+from match.resolve import decide, spoken_item, to_catalogue_item
 from store.db import Store
 
 INBOX = ROOT / "data" / "inbox"
@@ -30,7 +30,7 @@ def _read(path: Path) -> dict:
 # matched "confirme"/"confirmed", so a worker saying "I can confirm" was ignored.
 _CONFIRM_RE = re.compile(
     r"\b("
-    r"yes|yeah|yep|yup|yup|uh[- ]?huh|mm[- ]?hm"
+    r"yes|yeah|yep|yup|uh[- ]?huh|mm[- ]?hm"
     r"|correct|right|true|accurate"
     r"|that'?s (?:right|correct|it)|thats (?:right|correct|it)"
     r"|confirm(?:s|ed|ing)?|affirmative"
@@ -51,6 +51,12 @@ _CORRECT_RE = re.compile(
 def answer_intent(utterance: str) -> str | None:
     """confirm_discrepancy / correct_entry / None, from a spoken reply."""
     text = utterance or ""
+    if is_chinese(text):
+        # Check correction first: 不对 contains 对, which reads as agreement.
+        if _ZH_CORRECT.search(text):
+            return "correct_entry"
+        if _ZH_CONFIRM.search(text):
+            return "confirm_discrepancy"
     if _CORRECT_RE.search(text):
         return "correct_entry"
     if _CONFIRM_RE.search(text):
@@ -120,7 +126,8 @@ _BAD_QUALITY = re.compile(
 # "fresh" is excluded on purpose: it appears in supplier names ("Fresh Farms")
 # far more often than as a quality report.
 _GOOD_QUALITY = re.compile(
-    r"\b(looks good|looks fine|all good|no damage|undamaged|intact|in good shape)\b", re.I
+    r"\b(looks good|looks fine|all good|no damage|undamaged|intact|in good shape"
+    r")\b", re.I
 )
 
 
@@ -132,6 +139,100 @@ def parse_quality(text: str) -> str | None:
     return None
 
 
+
+# --- Chinese -----------------------------------------------------------------
+# Mandarin is written without spaces, so none of the patterns above can fire on
+# it: they all key off word boundaries. These read the same facts from a run of
+# characters instead.
+
+_CJK = re.compile(r"[\u4e00-\u9fff]")
+
+# 12箱 / 12 箱 / 12托盘 / 12件
+_ZH_QTY = re.compile(r"(\d+)\s*(箱|托盘|盘|件|个|包|袋)")
+# 批号 K3302 / 批次：K3302 / 批号是K3302
+_ZH_LOT = re.compile(r"(?:批号|批次|货号|批)\s*(?:是|为)?\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9\- ]{2,})")
+# 来自 Fresh Farms / 从Fresh Farms / 供应商是Fresh Farms
+_ZH_SUPPLIER = re.compile(
+    r"(?:来自|供应商|供货商|从)\s*(?:是|为)?\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9 .'&-]+)"
+)
+_ZH_CONFIRM = re.compile(r"(是的|没错|对的|确认|好的|正确|就是|对|是)")
+_ZH_CORRECT = re.compile(r"(不对|不是|其实|实际上|应该是|改成|错了)")
+_ZH_BAD = re.compile(r"(坏了|烂了|损坏|破损|压坏|腐烂|变质|发霉|化了|不新鲜)")
+_ZH_GOOD = re.compile(r"(没问题|完好|良好|没坏|很好|正常)")
+
+_ZH_DIGITS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+              "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+
+
+def _zh_number(text: str) -> int | None:
+    """Read a spoken Chinese number: 十二 -> 12, 二十 -> 20, 三 -> 3."""
+    match = re.search(r"[零一二两三四五六七八九十]+", text)
+    if not match:
+        return None
+    token = match.group(0)
+    if "十" not in token:
+        value = 0
+        for ch in token:
+            if ch not in _ZH_DIGITS:
+                return None
+            value = value * 10 + _ZH_DIGITS[ch]
+        return value or None
+    head, _, tail = token.partition("十")
+    tens = _ZH_DIGITS.get(head, 1) if head else 1
+    ones = _ZH_DIGITS.get(tail, 0) if tail else 0
+    return tens * 10 + ones
+
+
+def is_chinese(text: str | None) -> bool:
+    return bool(_CJK.search(text or ""))
+
+
+def parse_chinese(text: str, parsed: dict) -> dict:
+    """Fill whatever the English patterns could not read out of Mandarin."""
+    out = dict(parsed)
+
+    if out.get("quantity") is None:
+        qty = _ZH_QTY.search(text)
+        if qty:
+            out["quantity"] = int(qty.group(1))
+            out["unit"] = {"箱": "cases", "托盘": "pallets", "盘": "pallets"}.get(
+                qty.group(2), "units"
+            )
+        else:
+            spoken = _zh_number(text)
+            if spoken is not None:
+                out["quantity"] = spoken
+            elif not out.get("lot_code") and not _ZH_LOT.search(text):
+                # "应该是45" -- a correction names the number with no measure word.
+                # Only when nothing lot-shaped is present, or this would swallow
+                # the digits out of a lot code.
+                bare = re.search(r"(?<![A-Za-z0-9\-])(\d{1,4})(?![A-Za-z0-9\-])", text)
+                if bare:
+                    out["quantity"] = int(bare.group(1))
+
+    if not out.get("lot_code"):
+        lot = _ZH_LOT.search(text)
+        if lot:
+            out["lot_code"] = re.sub(r"\s+", "-", lot.group(1).strip().strip(".,;:：，。"))
+
+    if not out.get("supplier"):
+        sup = _ZH_SUPPLIER.search(text)
+        if sup:
+            out["supplier"] = sup.group(1).strip().strip(".,;:：，。")
+
+    if not out.get("item"):
+        # Commodities are looked up rather than matched: there is no delimiter
+        # to anchor a pattern to.
+        out["item"] = to_catalogue_item(text) if to_catalogue_item(text) != text else None
+
+    if not out.get("quality"):
+        if _ZH_BAD.search(text):
+            out["quality"] = "bad"
+        elif _ZH_GOOD.search(text):
+            out["quality"] = "good"
+    return out
+
+
 def crude_parse(utterance: str) -> dict:
     """Pull what we can out of a spoken line. Every field is best-effort.
 
@@ -140,7 +241,13 @@ def crude_parse(utterance: str) -> dict:
     heard stays None and the resolver scores on whatever remains.
     """
     text = utterance or ""
-    qty = re.search(r"(\d+)\s+(cases|case|pallets|pallet|units|unit|boxes|box)", text, re.I)
+    qty = re.search(
+        r"(\d+)\s+("
+        r"cases|case|pallets|pallet|units|unit|boxes|box"
+        r")",
+        text,
+        re.I,
+    )
     # "lot C5217-15", "lot number C5217 15", "lot: C-5217"
     # A lot code is one token, or two when spoken as "C5217 15". Stop before a
     # following clause, or the match swallows "... from Pacific Pack 5".
@@ -165,13 +272,19 @@ def crude_parse(utterance: str) -> dict:
     po = re.search(r"\b(?:p\.?\s?o\.?|purchase\s+order)[\s#:-]*(\d{3,6})\b", text, re.I)
 
     # "receiving 42 cases of cauliflower" and the bare "42 cases of cauliflower"
-    item = re.search(r"\d+\s+(?:cases?|pallets?|units?|boxes?|box)\s+of\s+([A-Za-z]+)", text, re.I)
+    item = re.search(
+        r"\d+\s+(?:cases?|pallets?|units?|boxes?|box)\s+of\s+([A-Za-z]+)",
+        text,
+        re.I,
+    )
     if not item:
         item = re.search(
-            r"(?:receiving|received|got|unloading|here'?s|this is)\s+"
+            r"(?:receiving|received|got|unloading|here'?s|this is"
+            r")\s+"
             # "I got some broccoli" -- skip determiners and filler, or the item
             # comes back as "some".
-            r"(?:(?:some|a|an|the|my|this|that|these|those|like|just|uh|um)\s+)*"
+            r"(?:(?:some|a|an|the|my|this|that|these|those|like|just|uh|um"
+            r")\s+)*"
             r"(?:\d+\s+\w+\s+of\s+)?([A-Za-z]+)",
             text,
             re.I,
@@ -182,7 +295,11 @@ def crude_parse(utterance: str) -> dict:
     # treat those as not heard and let the lot code identify the receipt.
     def clean_item(value: str | None) -> str | None:
         out = (value or "").strip().strip(".,;:").lower()
-        return out if len(out) >= 3 else None
+        if len(out) < 3:
+            return None
+        # Documents are in English; a Spanish commodity maps onto them here so
+        # the matcher never has to know which language was spoken.
+        return to_catalogue_item(out)
 
     def clean(value: str | None) -> str | None:
         if not value:
@@ -205,7 +322,7 @@ def crude_parse(utterance: str) -> dict:
         # "C5217 15" and "C5217-15" are the same code spoken two ways.
         lot_code = re.sub(r"\s+", "-", lot_code)
 
-    return {
+    parsed = {
         "intent": "receive",
         "item": clean_item(item.group(1)) if item else None,
         "quantity": int(qty.group(1)) if qty else None,
@@ -217,6 +334,7 @@ def crude_parse(utterance: str) -> dict:
         "quality": parse_quality(text),
         "in_reply_to": None,
     }
+    return parse_chinese(text, parsed) if is_chinese(text) else parsed
 
 
 def _mark(path: Path) -> None:
@@ -264,6 +382,33 @@ def _merge_pending(store: Store, worker_id: str | None, parsed: dict) -> dict:
     return merged
 
 
+def _reply_for(store: Store, doc: dict, mode: str, order: dict | None, parsed: dict) -> str:
+    """Answer in the language the worker spoke."""
+    builder = _reply_text_zh if _lang_of(doc) == "zh" else _reply_text
+    return builder(store, mode, order, parsed)
+
+
+def _lang_of(doc: dict, parsed: dict | None = None) -> str:
+    """Which language to answer in. Whisper's detection, else what we parsed."""
+    detected = (doc.get("language") or "").lower()[:2]
+    return "zh" if detected == "zh" else "en"
+
+
+def _already_text_zh(order: dict) -> str:
+    state = order.get("status")
+    tail = (
+        f"\u5df2\u6807\u8bb0\uff1a{order.get('flag_reason')}\u3002"
+        if state == "flagged"
+        else "\u5df2\u786e\u8ba4\u3002"
+    )
+    return (
+        f"{order.get('po_id')} \u7684{spoken_item(order.get('item'), 'zh')}\u5df2\u7ecf\u767b\u8bb0\uff1a"
+        f"{order.get('quantity_received')} {order.get('unit') or ''}\uff0c"
+        f"\u6279\u53f7 {order.get('lot_code')}\u3002{tail}"
+        "\u5982\u679c\u8fd9\u6258\u76d8\u4e0d\u540c\uff0c\u8bf7\u8bf4\u4fee\u6b63\u3002"
+    )
+
+
 def _already_text(order: dict) -> str:
     """Tell the worker this line is done, and what it was recorded as."""
     when = order.get("time_process_finished") or order.get("updated_at")
@@ -279,6 +424,28 @@ def _already_text(order: dict) -> str:
         f"{when_txt} at {order.get('quantity_received')} "
         f"{order.get('unit') or 'units'}, lot {order.get('lot_code')}.{tail}"
         " Say correct it if this pallet is different."
+    )
+
+
+def _offer_text_zh(parsed: dict, candidates: list[dict]) -> str:
+    heard = [
+        f"{parsed['quantity']}{'\u7bb1' if (parsed.get('unit') or '') == 'cases' else ''}"
+        if parsed.get("quantity") else None,
+        spoken_item(parsed.get("item"), "zh") or None,
+        f"\u6279\u53f7 {parsed['lot_code']}" if parsed.get("lot_code") else None,
+        f"\u6765\u81ea {parsed['supplier']}" if parsed.get("supplier") else None,
+    ]
+    heard_txt = "\uff0c".join(h for h in heard if h) or "\u8fd9\u4e2a"
+    options = "\uff1b".join(
+        f"{c['po_id']}"
+        + (f"\uff08{c['supplier']}\uff09" if c.get("supplier") else "")
+        + (f"\u6279\u53f7 {c['lot_codes'][0]}" if c.get("lot_codes") else "")
+        for c in candidates[:3]
+    )
+    return (
+        f"\u6211\u542c\u5230{heard_txt}\uff0c\u4f46\u4e0d\u786e\u5b9a\u662f\u54ea\u4e00\u6279\u3002"
+        f"\u6211\u8fd9\u8fb9\u6709 {options}\u3002\u662f\u54ea\u4e00\u4e2a\uff1f"
+        "\u8bf4\u6279\u53f7\u6216\u8ba2\u5355\u53f7\u5c31\u53ef\u4ee5\u3002"
     )
 
 
@@ -319,6 +486,47 @@ def _offer_text(parsed: dict, candidates: list[dict]) -> str:
         else f"I heard {heard_txt}, but I could not tell which delivery you mean"
     )
     return f"{lead}. I have {options}. Which one? A lot code or PO number settles it."
+
+
+def _reply_text_zh(store: Store, mode: str, order: dict | None, parsed: dict) -> str:
+    if mode == "unmatched":
+        return (
+            "\u6211\u6ca1\u6709\u627e\u5230\u5bf9\u5e94\u7684\u5230\u8d27\u3002"
+            "\u8bf7\u518d\u8bf4\u4e00\u904d\u6570\u91cf\u3001\u54c1\u540d\u3001\u6279\u53f7\u548c\u4f9b\u5e94\u5546\u3002"
+        )
+    if mode == "clarification_answer":
+        if not order:
+            return "\u6211\u5f04\u4e22\u4e86\u90a3\u4e2a\u95ee\u9898\uff0c\u8bf7\u518d\u8bf4\u4e00\u904d\u3002"
+        if order.get("status") == "flagged":
+            return (
+                f"\u660e\u767d\u4e86\u3002\u6211\u5df2\u628a{spoken_item(order.get('item'), 'zh')}"
+                f"\u6279\u53f7 {order.get('lot_code')} \u6807\u8bb0\u4e3a\u5c11\u8d27\uff1a"
+                f"\u5b9e\u6536 {order.get('quantity_received')}\uff0c\u5e94\u6536 "
+                f"{order.get('quantity_expected')}\u3002\u5df2\u7ecf\u901a\u77e5\u4e3b\u7ba1\u3002"
+            )
+        return (
+            f"\u5df2\u4fee\u6b63\u3002{spoken_item(order.get('item'), 'zh')}\u6279\u53f7 "
+            f"{order.get('lot_code')} \u786e\u8ba4\u4e3a {order.get('quantity_received')}\u3002"
+        )
+    if order:
+        open_here = [
+            c for c in store.list_open_clarifications()
+            if c.get("order_id") == order.get("order_id")
+        ]
+        if open_here:
+            return open_here[0].get("question_zh") or open_here[0].get("question") or ""
+        if order.get("status") == "flagged":
+            return (
+                f"\u5df2\u767b\u8bb0 {order.get('quantity_received')} "
+                f"{spoken_item(order.get('item'), 'zh')}\uff0c\u6279\u53f7 {order.get('lot_code')}\uff0c"
+                f"\u5e76\u6807\u8bb0\uff1a{order.get('flag_reason')}\u3002\u5df2\u7ecf\u901a\u77e5\u4e3b\u7ba1\u3002"
+            )
+        return (
+            f"\u5df2\u767b\u8bb0 {order.get('quantity_received')} "
+            f"{spoken_item(order.get('item'), 'zh')}\uff0c\u6279\u53f7 {order.get('lot_code')}\u3002"
+            "\u4e0e\u5355\u636e\u4e00\u81f4\uff0c\u5df2\u786e\u8ba4\u3002"
+        )
+    return "\u5df2\u767b\u8bb0\u3002"
 
 
 def _reply_text(store: Store, mode: str, order: dict | None, parsed: dict) -> str:
@@ -405,7 +613,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         order = store.answer_clarification(reply_to, doc, actor=doc.get("actor") or "ingest")
         return _finish(store, doc, {
             "event_id": doc["event_id"], "order": order, "mode": "clarification_answer",
-            "reply": _reply_text(store, "clarification_answer", order, parsed),
+            "reply": _reply_for(store, doc, "clarification_answer", order, parsed),
         })
     parsed = _merge_pending(store, doc.get("worker_id"), parsed)
     if not parsed.get("po_id") and doc.get("po_id"):
@@ -419,11 +627,11 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             return _finish(store, doc, {
                 "event_id": doc["event_id"], "order": None, "mode": "ambiguous",
                 "candidates": offer,
-                "reply": _offer_text(parsed, offer),
+                "reply": (_offer_text_zh if _lang_of(doc) == "zh" else _offer_text)(parsed, offer),
             })
         return _finish(store, doc, {
             "event_id": doc["event_id"], "order": None, "mode": "unmatched",
-            "reply": _reply_text(store, "unmatched", None, parsed),
+            "reply": _reply_for(store, doc, "unmatched", None, parsed),
         })
     # Every PO/BOL on file is a receipt the warehouse expects. Once one has been
     # checked in, reading the pallet again should say so rather than quietly
@@ -434,7 +642,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
             "event_id": doc["event_id"],
             "order": already,
             "mode": "already_received",
-            "reply": _already_text(already),
+            "reply": (_already_text_zh if _lang_of(doc) == "zh" else _already_text)(already),
         })
 
     papers = store.papers_for_po(po_id)
@@ -454,7 +662,7 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         doc["session_id"] = order_session
     return _finish(store, doc, {
         "event_id": doc["event_id"], "order": order, "mode": "receive",
-        "reply": _reply_text(store, "receive", order, parsed),
+        "reply": _reply_for(store, doc, "receive", order, parsed),
     })
 
 

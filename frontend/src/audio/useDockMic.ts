@@ -14,6 +14,8 @@ export type DockTurn = {
   candidates?: { po_id: string; supplier: string; score: number }[];
   utterance: string;
   reply: string;
+  /** Language Whisper detected, so the reply is spoken in it. */
+  language?: string | null;
   order?: { order_id: string; status?: string } | null;
 };
 
@@ -104,11 +106,11 @@ export function useDockMic(
       const turn = payload as DockTurn;
       setLastTurn(turn);
       onTurn?.(turn);
-      setStatus(`Heard: “${turn.utterance}”`);
+      setStatus(`Heard${turn.language === "zh" ? " (zh)" : ""}: “${turn.utterance}”`);
 
       if (turn.reply) {
         setState("speaking");
-        speak(turn.reply, { onEnd: () => setState("idle") });
+        speak(turn.reply, { lang: turn.language ?? "en", onEnd: () => setState("idle") });
       } else {
         setState("idle");
       }

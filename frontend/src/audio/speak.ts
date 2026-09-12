@@ -4,12 +4,16 @@
 
 let warmed = false;
 
-function pickVoice(): SpeechSynthesisVoice | null {
+function pickVoice(lang: string): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis?.getVoices?.() ?? [];
   if (!voices.length) return null;
-  // Prefer a natural en-US voice; fall back to any English one.
+  const prefix = lang === "zh" ? "zh" : "en";
+  // Mandarin read by an English voice is unintelligible, so match the language
+  // first and only then prefer a natural-sounding voice.
+  const inLanguage = voices.filter((v) => new RegExp(`^${prefix}[-_]`, "i").test(v.lang));
   return (
-    voices.find((v) => /en-US/i.test(v.lang) && /natural|neural|samantha|google/i.test(v.name)) ??
+    inLanguage.find((v) => /natural|neural|google|tingting|ting-ting|huihui|yaoyao/i.test(v.name)) ??
+    inLanguage[0] ??
     voices.find((v) => /^en[-_]/i.test(v.lang)) ??
     voices[0]
   );
@@ -20,7 +24,10 @@ export function speechSupported(): boolean {
 }
 
 /** Speak text aloud, cancelling anything still in progress. */
-export function speak(text: string, opts: { rate?: number; onEnd?: () => void } = {}): void {
+export function speak(
+  text: string,
+  opts: { rate?: number; lang?: string; onEnd?: () => void } = {},
+): void {
   if (!speechSupported() || !text.trim()) {
     opts.onEnd?.();
     return;
@@ -28,10 +35,12 @@ export function speak(text: string, opts: { rate?: number; onEnd?: () => void } 
   const synth = window.speechSynthesis;
   synth.cancel();
 
+  const lang = opts.lang === "zh" ? "zh" : "en";
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = opts.rate ?? 1.02;
   utter.pitch = 1;
-  const voice = pickVoice();
+  utter.lang = lang === "zh" ? "zh-CN" : "en-US";
+  const voice = pickVoice(lang);
   if (voice) utter.voice = voice;
   utter.onend = () => opts.onEnd?.();
   utter.onerror = () => opts.onEnd?.();

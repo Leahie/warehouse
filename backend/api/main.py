@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from heartbeat.run import tick as heartbeat_tick
 from ingest.run import ingest_voice_doc
-from ingest.transcribe_wav import transcribe_bytes
+from ingest.transcribe_wav import transcribe_bytes, transcribe_detailed
 from investigate.run import run_investigation
 from store.db import Store
 
@@ -223,7 +223,7 @@ async def audio(
         raise HTTPException(400, "empty audio")
     base = os.environ.get("WHISPER_BASE_URL", "http://127.0.0.1:8001/v1")
     try:
-        utterance = transcribe_bytes(data, file.filename or "clip.wav", base)
+        utterance, language = transcribe_detailed(data, file.filename or "clip.wav", base)
     except Exception as exc:
         raise HTTPException(502, f"whisper failed: {exc}") from exc
     if not utterance:
@@ -235,6 +235,8 @@ async def audio(
         "parsed": None,
         "actor": "dock-mic",
         "ingest_channel": "browser_mic",
+        # Whisper detects the language; the agent answers in it.
+        "language": language,
         "context_order_id": context_order_id or None,
         # The browser owns the notion of a conversation; the server groups by it
         # rather than inferring threads from lot codes after the fact.
@@ -242,6 +244,7 @@ async def audio(
     }
     result = ingest_voice_doc(store, doc)
     result["utterance"] = utterance
+    result["language"] = language
     return _jsonify(result)
 
 

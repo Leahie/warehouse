@@ -14,6 +14,17 @@ OUT_DIR = ROOT / "data" / "inbox" / "voice"
 
 
 def transcribe_bytes(data: bytes, filename: str, base: str) -> str:
+    """Backwards-compatible: text only."""
+    return transcribe_detailed(data, filename, base)[0]
+
+
+def transcribe_detailed(data: bytes, filename: str, base: str) -> tuple[str, str | None]:
+    """Transcribe and report the language Whisper heard.
+
+    A dock is not monolingual. Asking for verbose_json costs nothing and returns
+    the detected language alongside the text, which is what lets the rest of the
+    pipeline answer a worker in the language they spoke.
+    """
     import urllib.request
 
     name = Path(filename).name or "clip.wav"
@@ -26,7 +37,7 @@ def transcribe_bytes(data: bytes, filename: str, base: str) -> str:
     ).encode() + data + (
         f"\r\n--{boundary}\r\n"
         'Content-Disposition: form-data; name="response_format"\r\n\r\n'
-        "json"
+        "verbose_json"
         f"\r\n--{boundary}--\r\n"
     ).encode()
     req = urllib.request.Request(
@@ -41,9 +52,12 @@ def transcribe_bytes(data: bytes, filename: str, base: str) -> str:
     with urllib.request.urlopen(req, timeout=120) as resp:
         payload = json.loads(resp.read().decode())
     if isinstance(payload, dict) and "text" in payload:
-        return str(payload["text"]).strip()
+        # whisper reports the full name ("spanish"); normalise to a short code.
+        raw = str(payload.get("language") or "").strip().lower()
+        language = {"chinese": "zh", "mandarin": "zh", "english": "en"}.get(raw, raw[:2] or None)
+        return str(payload["text"]).strip(), language
     if isinstance(payload, str):
-        return payload.strip()
+        return payload.strip(), None
     raise RuntimeError(f"unexpected whisper response: {payload!r}")
 
 
