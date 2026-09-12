@@ -275,6 +275,24 @@ export function useAlerts(fallback: AlertCard[]): InfiniteLive<AlertCard> {
   });
 }
 
+/** Full alert set for the summary strip — not the paged feed. `limit=0` skips the page cap. */
+export function useAllAlerts(fallback: AlertCard[]): Live<AlertCard[]> {
+  const { value, error, settled } = usePoll<AlertCard[]>(async (signal) => {
+    const page = await fetchAlertsPage(0, 0, signal);
+    return page.items.map((alert: ApiAlert) => toAlertCard(alert, page.orders));
+  }, []);
+
+  return useMemo(
+    () => ({
+      data: value ?? (settled ? fallback : []),
+      isLive: value !== null,
+      isLoading: !settled,
+      error,
+    }),
+    [value, error, settled, fallback],
+  );
+}
+
 export function useVoiceSessions(fallback: VoiceSession[]): Live<VoiceSession[]> {
   const { value, error, settled } = usePoll<{ events: ApiEvent[]; orders: ApiOrder[] }>(
     async (s) => ({ events: await fetchEvents("voice", s), orders: await fetchOrders(s) }),

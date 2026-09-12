@@ -27,8 +27,10 @@ export function AppHeader() {
       </Link>
 
       <Selector
-        className="w-64"
-        placeholder="Go to page…"
+        className="w-max"
+        placeholder="Menu"
+        editable={false}
+        clearable={false}
         leading={<MenuIcon />}
         options={APP_ROUTES.map((route) => ({ value: route.path, label: route.label }))}
         value={current?.path ?? ""}

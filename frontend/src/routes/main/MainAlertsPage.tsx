@@ -9,7 +9,7 @@ import {
 import { InfiniteSentinel } from "@/components/InfiniteSentinel";
 import { WEEK_MS } from "@/constants/statuses";
 import type { AlertCard as AlertCardType } from "@/types/alert";
-import { useAlerts } from "@/api/useLiveData";
+import { useAlerts, useAllAlerts } from "@/api/useLiveData";
 
 const fallbackAlerts = alertsData as AlertCardType[];
 
@@ -73,6 +73,7 @@ function groupByDay(alerts: AlertCardType[]) {
 
 export function MainAlertsPage() {
   const { data: alerts, hasMore, loadMore, isLive, isLoading } = useAlerts(fallbackAlerts);
+  const { data: allAlerts } = useAllAlerts(fallbackAlerts);
   const [selectedDay, setSelectedDay] = useState("");
   const [severity, setSeverity] = useState<SeverityFilter>("all");
 
@@ -89,7 +90,10 @@ export function MainAlertsPage() {
     return weekly.filter((alert) => localDayKey(alert.created_at) === selectedDay);
   }, [weekly, selectedDay]);
 
-  const stats = useMemo(() => summarize(dayScoped), [dayScoped]);
+  const stats = useMemo(
+    () => summarize(allAlerts.filter((alert) => isWithinLastWeek(alert.created_at))),
+    [allAlerts],
+  );
 
   const visible = useMemo(() => {
     if (severity === "all") return dayScoped;

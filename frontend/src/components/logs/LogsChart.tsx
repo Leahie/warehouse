@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { StatusBreakdown } from "@/types/logs";
 import { STATUS_COLORS } from "@/constants/statuses";
 
@@ -34,6 +35,7 @@ const DAY_GAP = 64;
 const PLOT_H_CLASS = "h-80";
 const PLOT_H = 320;
 const LINE_COL_W = 96;
+const AXIS_HEAD_CLASS = "h-8";
 
 function totalOf(q: StatusBreakdown) {
   return q.pending_clarification + q.committed + q.flagged;
@@ -62,8 +64,8 @@ export function LogsChart({ groups, points, mode, singleManufacturerName, isLoad
   const empty = mode === "single" ? points.length === 0 : groups.length === 0;
 
   return (
-    <div className="card-surface flex min-h-[460px] min-w-0 flex-1 flex-col overflow-hidden p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="card-surface flex min-h-[520px] min-w-0 flex-col overflow-visible px-8 py-8">
+      <div className="mb-6 flex items-center justify-between">
         <h2 className="text-h4-default text-primary m-0 font-semibold">Volume & Quality Logs</h2>
         {mode ? (
           <span className="text-body3-default rounded-small border border-core bg-core-surface-ii px-2.5 py-1 text-secondary font-medium uppercase tracking-wider">
@@ -85,10 +87,10 @@ export function LogsChart({ groups, points, mode, singleManufacturerName, isLoad
           </p>
         </div>
       ) : (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="flex min-w-0 flex-col">
+          <div className="flex min-w-0">
             <YAxis ticks={ticks} />
-            <div className="relative min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+            <div className="relative min-w-0 flex-1 overflow-x-auto">
               {mode === "single" ? (
                 <LinePlot points={points} ceiling={ceiling} ticks={ticks} />
               ) : (
@@ -97,7 +99,7 @@ export function LogsChart({ groups, points, mode, singleManufacturerName, isLoad
             </div>
           </div>
 
-          <div className="mt-3 pl-20 text-center">
+          <div className="mt-4 pl-20 text-center">
             {mode === "multiple" ? (
               <div className="text-body2-heavy text-secondary tracking-wide">Date</div>
             ) : (
@@ -115,7 +117,7 @@ export function LogsChart({ groups, points, mode, singleManufacturerName, isLoad
         </div>
       )}
 
-      <div className="text-body3-default text-tertiary mt-6 flex flex-wrap items-center justify-center gap-6 border-t border-core/60 pt-4">
+      <div className="text-body3-default text-tertiary mt-8 flex flex-wrap items-center justify-center gap-6 border-t border-core/60 pt-5">
         <Legend color={STATUS_COLORS.committed} label="Committed (Green)" />
         <Legend color={STATUS_COLORS.pending_clarification} label="Pending clarification (Yellow)" />
         <Legend color={STATUS_COLORS.flagged} label="Flagged by heartbeat (Red)" />
@@ -126,17 +128,24 @@ export function LogsChart({ groups, points, mode, singleManufacturerName, isLoad
 
 function YAxis({ ticks }: { ticks: number[] }) {
   return (
-    <div className={`relative flex w-20 shrink-0 flex-col justify-between pr-2 text-right ${PLOT_H_CLASS}`}>
-      <div className="absolute -top-3 left-0 text-body3-default font-semibold text-primary">Quantity</div>
-      {ticks.map((tick, i) => (
-        <div
-          key={`${tick}-${i}`}
-          className="text-body3-default text-tertiary font-mono text-xs flex items-center justify-end"
-          style={{ height: i === 0 || i === ticks.length - 1 ? 0 : "auto" }}
-        >
-          {tick}
-        </div>
-      ))}
+    <div className="relative w-20 shrink-0 overflow-visible pr-3 text-right">
+      <div className={`flex ${AXIS_HEAD_CLASS} items-end justify-end pb-1`}>
+        <span className="text-body3-default font-semibold text-primary">Quantity</span>
+      </div>
+      <div className={`relative ${PLOT_H_CLASS}`}>
+        {ticks.map((tick, i) => (
+          <div
+            key={`${tick}-${i}`}
+            className="text-body3-default text-tertiary absolute right-0 font-mono text-xs leading-none"
+            style={{
+              top: `${(i / Math.max(ticks.length - 1, 1)) * 100}%`,
+              transform: "translateY(-50%)",
+            }}
+          >
+            {tick}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -168,23 +177,26 @@ function GroupedBars({
   ticks: number[];
 }) {
   return (
-    <div className="relative inline-block min-w-full">
-      <Gridlines ticks={ticks} />
-      <div className={`pointer-events-none absolute top-0 left-0 z-10 w-0 border-l-2 border-core-border-ii ${PLOT_H_CLASS}`} />
-      <div className={`relative z-10 flex items-stretch px-4 ${PLOT_H_CLASS}`} style={{ gap: DAY_GAP }}>
-        {groups.map((group) => (
-          <div
-            key={group.key}
-            className={`flex shrink-0 items-end ${PLOT_H_CLASS}`}
-            style={{ width: clusterWidth(group.bars.length), gap: BAR_GAP }}
-          >
-            {group.bars.map((bar) => (
-              <StackBar key={bar.key} bar={bar} ceiling={ceiling} />
-            ))}
-          </div>
-        ))}
+    <div className="relative inline-block min-w-full pb-4">
+      <div className={AXIS_HEAD_CLASS} />
+      <div className="relative">
+        <Gridlines ticks={ticks} />
+        <div className={`pointer-events-none absolute top-0 left-0 z-10 w-0 border-l-2 border-core-border-ii ${PLOT_H_CLASS}`} />
+        <div className={`relative z-10 flex items-end px-6 ${PLOT_H_CLASS}`} style={{ gap: DAY_GAP }}>
+          {groups.map((group) => (
+            <div
+              key={group.key}
+              className={`flex shrink-0 items-end ${PLOT_H_CLASS}`}
+              style={{ width: clusterWidth(group.bars.length), gap: BAR_GAP }}
+            >
+              {group.bars.map((bar) => (
+                <StackBar key={bar.key} bar={bar} ceiling={ceiling} />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="flex items-start px-4 pt-2" style={{ gap: DAY_GAP }}>
+      <div className="flex items-start px-6 pt-4" style={{ gap: DAY_GAP }}>
         {groups.map((group) => (
           <div
             key={`${group.key}-label`}
@@ -203,7 +215,7 @@ function GroupedBars({
                 </span>
               ))}
             </div>
-            <span className="text-body2-default text-primary mt-1 text-center font-semibold leading-snug">
+            <span className="text-body2-default text-primary mt-1.5 text-center font-semibold leading-snug">
               {group.label}
             </span>
           </div>
@@ -219,11 +231,19 @@ function StackBar({ bar, ceiling }: { bar: ChartBar; ceiling: number }) {
   const pendingPct = total ? (bar.quantities.pending_clarification / total) * 100 : 0;
   const committedPct = total ? (bar.quantities.committed / total) * 100 : 0;
   const flaggedPct = total ? (bar.quantities.flagged / total) * 100 : 0;
+  const [hovered, setHovered] = useState(false);
+  const barRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className={`group relative flex items-end justify-center ${PLOT_H_CLASS}`} style={{ width: BAR_W }}>
+    <div
+      className={`relative flex items-end justify-center ${PLOT_H_CLASS}`}
+      style={{ width: BAR_W }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <div
-        className="relative overflow-hidden rounded-t-small shadow-sm transition-all duration-200 group-hover:brightness-105 group-hover:scale-[1.02]"
+        ref={barRef}
+        className="relative overflow-hidden rounded-t-small shadow-sm transition-all duration-200 hover:brightness-105"
         style={{
           width: BAR_W,
           height: heightPx,
@@ -244,7 +264,9 @@ function StackBar({ bar, ceiling }: { bar: ChartBar; ceiling: number }) {
           />
         </div>
       </div>
-      <HoverCard title={bar.label} quantities={bar.quantities} />
+      {hovered ? (
+        <HoverCard anchorRef={barRef} title={bar.label} quantities={bar.quantities} />
+      ) : null}
     </div>
   );
 }
@@ -261,12 +283,14 @@ function LinePlot({
   const [hovered, setHovered] = useState<number | null>(null);
   const width = Math.max(points.length * LINE_COL_W, 360);
   const padX = 60;
-  const padY = 10;
+  const padY = 24;
   const innerW = width - padX * 2;
   const innerH = PLOT_H - padY * 2;
   const xAt = (i: number) =>
     padX + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
   const yAt = (value: number) => padY + innerH - (value / ceiling) * innerH;
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [pointBox, setPointBox] = useState<DOMRect | null>(null);
 
   const series = [
     { key: "committed" as const, color: STATUS_COLORS.committed },
@@ -274,77 +298,100 @@ function LinePlot({
     { key: "flagged" as const, color: STATUS_COLORS.flagged },
   ];
 
+  useLayoutEffect(() => {
+    const index = hovered;
+    const point = index == null ? null : points[index];
+    if (index == null || !point || !svgRef.current) {
+      setPointBox(null);
+      return;
+    }
+    function sync() {
+      const svg = svgRef.current;
+      if (!svg || index == null || !point) return;
+      const rect = svg.getBoundingClientRect();
+      const scaleX = rect.width / width;
+      const scaleY = rect.height / PLOT_H;
+      const topY = Math.min(...series.map((s) => yAt(point.quantities[s.key])));
+      setPointBox(new DOMRect(rect.left + xAt(index) * scaleX - 8, rect.top + topY * scaleY, 16, 16));
+    }
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("scroll", sync, true);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("scroll", sync, true);
+    };
+  }, [hovered, points, width]);
+
   return (
-    <div className="relative inline-block min-w-full">
-      <Gridlines ticks={ticks} />
-      <div className={`pointer-events-none absolute top-0 left-0 z-10 w-0 border-l-2 border-core-border-ii ${PLOT_H_CLASS}`} />
-      <svg
-        className="relative z-10 block"
-        width={width}
-        height={PLOT_H}
-        viewBox={`0 0 ${width} ${PLOT_H}`}
-        role="img"
-        aria-label="Company volume over time"
-      >
-        {series.map((s) => {
-          const d = points
-            .map((point, i) => `${i === 0 ? "M" : "L"} ${xAt(i)} ${yAt(point.quantities[s.key])}`)
-            .join(" ");
-          return (
-            <path
-              key={s.key}
-              d={d}
-              fill="none"
-              stroke={s.color}
-              strokeWidth="2.5"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          );
-        })}
-        {points.map((point, i) => (
-          <g
-            key={point.key}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-          >
-            <rect
-              x={xAt(i) - LINE_COL_W / 2}
-              y={0}
-              width={LINE_COL_W}
-              height={PLOT_H}
-              fill="transparent"
-            />
-            {series.map((s) => (
-              <circle
-                key={s.key}
-                cx={xAt(i)}
-                cy={yAt(point.quantities[s.key])}
-                r={hovered === i ? 5 : 3.5}
-                fill={s.color}
-                stroke="var(--color-core-surface, #fff)"
-                strokeWidth="1.5"
-              />
-            ))}
-          </g>
-        ))}
-      </svg>
-      {hovered != null && points[hovered] ? (
-        <div
-          className="pointer-events-none absolute z-50 w-56 -translate-x-1/2 rounded-default border border-core bg-core-surface p-3.5 shadow-xl"
-          style={{
-            left: xAt(hovered),
-            top: 12,
-          }}
+    <div className="relative inline-block min-w-full pb-4">
+      <div className={AXIS_HEAD_CLASS} />
+      <div className="relative">
+        <Gridlines ticks={ticks} />
+        <div className={`pointer-events-none absolute top-0 left-0 z-10 w-0 border-l-2 border-core-border-ii ${PLOT_H_CLASS}`} />
+        <svg
+          ref={svgRef}
+          className="relative z-10 block"
+          width={width}
+          height={PLOT_H}
+          viewBox={`0 0 ${width} ${PLOT_H}`}
+          role="img"
+          aria-label="Company volume over time"
         >
+          {series.map((s) => {
+            const d = points
+              .map((point, i) => `${i === 0 ? "M" : "L"} ${xAt(i)} ${yAt(point.quantities[s.key])}`)
+              .join(" ");
+            return (
+              <path
+                key={s.key}
+                d={d}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            );
+          })}
+          {points.map((point, i) => (
+            <g
+              key={point.key}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <rect
+                x={xAt(i) - LINE_COL_W / 2}
+                y={0}
+                width={LINE_COL_W}
+                height={PLOT_H}
+                fill="transparent"
+              />
+              {series.map((s) => (
+                <circle
+                  key={s.key}
+                  cx={xAt(i)}
+                  cy={yAt(point.quantities[s.key])}
+                  r={hovered === i ? 5 : 3.5}
+                  fill={s.color}
+                  stroke="var(--color-core-surface, #fff)"
+                  strokeWidth="1.5"
+                />
+              ))}
+            </g>
+          ))}
+        </svg>
+      </div>
+      {hovered != null && points[hovered] && pointBox ? (
+        <PortaledTooltip anchor={pointBox}>
           <TooltipBody title={points[hovered].label} quantities={points[hovered].quantities} />
-        </div>
+        </PortaledTooltip>
       ) : null}
-      <div className="relative pt-2" style={{ width, minHeight: 44 }}>
+      <div className="relative pt-4" style={{ width, minHeight: 52 }}>
         {points.map((point, i) => (
           <span
             key={`${point.key}-label`}
-            className="text-body2-default text-primary absolute top-2 text-center font-semibold leading-snug"
+            className="text-body2-default text-primary absolute top-4 text-center font-semibold leading-snug"
             style={{
               left: xAt(i),
               width: LINE_COL_W,
@@ -359,15 +406,56 @@ function LinePlot({
   );
 }
 
-function HoverCard({ title, quantities }: { title: string; quantities: StatusBreakdown }) {
+function HoverCard({
+  anchorRef,
+  title,
+  quantities,
+}: {
+  anchorRef: RefObject<HTMLElement | null>;
+  title: string;
+  quantities: StatusBreakdown;
+}) {
+  const [box, setBox] = useState<DOMRect | null>(null);
+
+  useLayoutEffect(() => {
+    function sync() {
+      const el = anchorRef.current;
+      if (!el) return;
+      setBox(el.getBoundingClientRect());
+    }
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("scroll", sync, true);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("scroll", sync, true);
+    };
+  }, [anchorRef]);
+
+  if (!box) return null;
   return (
-    <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 hidden w-56 -translate-x-1/2 rounded-default border border-core bg-core-surface p-3.5 shadow-xl group-hover:block">
+    <PortaledTooltip anchor={box}>
       <TooltipBody title={title} quantities={quantities} />
-    </div>
+    </PortaledTooltip>
   );
 }
 
-function TooltipBody({ title, quantities }: { title: string; quantities: StatusBreakdown }) {
+function PortaledTooltip({ anchor, children }: { anchor: DOMRect; children: ReactNode }) {
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[80] w-56 -translate-x-1/2 -translate-y-full rounded-default border border-core bg-core-surface p-3.5 shadow-xl"
+      style={{
+        left: anchor.left + anchor.width / 2,
+        top: Math.max(12, anchor.top - 12),
+      }}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+function TooltipBody({ title, quantities }: { title: string, quantities: StatusBreakdown }) {
   const total = totalOf(quantities);
   const pct = (n: number) => (total ? ((n / total) * 100).toFixed(0) : "0");
   return (

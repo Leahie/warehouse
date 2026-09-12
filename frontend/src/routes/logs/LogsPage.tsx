@@ -221,7 +221,7 @@ export function LogsPage() {
       />
 
       {mode === "multiple" || mode === "single" ? (
-        <div className="card-surface p-4">
+        <div className="card-surface overflow-visible p-4">
           <div className="text-body3-default text-tertiary mb-2 font-semibold tracking-wider uppercase">
             {mode === "multiple" ? "Compare Manufacturers" : "Selected Manufacturer"}
           </div>

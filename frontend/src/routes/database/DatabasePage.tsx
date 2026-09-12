@@ -24,6 +24,15 @@ const COLUMNS: { key: ColumnKey; title: string }[] = [
   { key: "status", title: "Status" },
 ];
 
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l5 5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString(undefined, {
     hour: "2-digit",
@@ -158,7 +167,7 @@ export function DatabasePage() {
           </p>
         )}
           <p className="text-body3-default text-tertiary mt-1 mb-0">
-            Real-time receipt ledger. Double-click any column header to filter.
+            Real-time receipt ledger. Showing {rows.length} of {orders.length} orders.
           </p>
         </div>
 
@@ -174,19 +183,6 @@ export function DatabasePage() {
             }}
           />
         </div>
-      </div>
-
-      {/* Helpful double-click banner affordance */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-default border border-brand-green/20 bg-brand-green-soft/40 px-4 py-2.5">
-        <div className="flex items-center gap-2 text-body2-default text-brand-green font-medium">
-          <span className="text-base">💡</span>
-          <span>
-            <strong>Double-click</strong> on any column header to open instant search and dropdown filters.
-          </span>
-        </div>
-        <span className="text-body3-default text-secondary">
-          Showing {rows.length} of {orders.length} orders
-        </span>
       </div>
 
       {activeChips.length > 0 ? (
@@ -234,11 +230,11 @@ export function DatabasePage() {
                       "group relative select-none border-b border-core px-4 py-3 whitespace-nowrap cursor-pointer transition-colors",
                       hasActiveFilter ? "bg-brand-green-soft/30" : "hover:bg-core-surface-ii",
                     ].join(" ")}
-                    onDoubleClick={() => {
+                    onClick={() => {
                       setOpenColumn(col.key);
                       setDraft(filters);
                     }}
-                    title="Double-click to filter this column"
+                    title="Filter this column"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-h5-default text-primary font-semibold">{col.title}</span>
@@ -246,9 +242,9 @@ export function DatabasePage() {
                         type="button"
                         aria-label={`Filter ${col.title}`}
                         className={[
-                          "flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors",
+                          "flex items-center justify-center rounded p-1 transition-colors",
                           hasActiveFilter
-                            ? "bg-brand-green text-on-brand font-bold"
+                            ? "bg-brand-green text-on-brand"
                             : "bg-core-surface-ii text-tertiary group-hover:bg-brand-green-soft group-hover:text-accent",
                         ].join(" ")}
                         onClick={(e) => {
@@ -257,8 +253,7 @@ export function DatabasePage() {
                           setDraft(filters);
                         }}
                       >
-                        <span className="font-mono text-[10px]">2×</span>
-                        <span>🔍</span>
+                        <SearchIcon />
                       </button>
                     </div>
 

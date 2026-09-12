@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 
 export type SelectorOption = {
@@ -16,6 +24,11 @@ type Props = {
   clearable?: boolean;
   /** When true, typing updates the value immediately (column contains-filters). */
   allowCustom?: boolean;
+  /**
+   * Searchable text field when true. When false, the trigger is a solid
+   * dropdown button — click to pick, no typing.
+   */
+  editable?: boolean;
   leading?: ReactNode;
 };
 
@@ -34,6 +47,7 @@ export function Selector({
   className = "",
   clearable = true,
   allowCustom = false,
+  editable = true,
   leading,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -42,20 +56,25 @@ export function Selector({
   const [activeIndex, setActiveIndex] = useState(0);
   const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  function setTriggerEl(node: HTMLElement | null) {
+    triggerRef.current = node;
+  }
+
   const normalized = useMemo(() => asOptions(options), [options]);
   const selected = normalized.find((option) => option.value === value);
-  const selectedLabel = selected?.label ?? (allowCustom ? value : "");
+  const selectedLabel = selected?.label ?? (allowCustom && editable ? value : "");
 
-  const filterText = typing ? query : "";
+  const filterText = editable && typing ? query : "";
   const filtered = normalized.filter((option) =>
     option.label.toLowerCase().includes(filterText.toLowerCase().trim()),
   );
 
   const inputValue = typing ? query : selectedLabel;
+  const displayLabel = selectedLabel || placeholder;
 
   useEffect(() => {
     setActiveIndex(0);
@@ -114,6 +133,39 @@ export function Selector({
     inputRef.current?.blur();
   }
 
+  function moveActive(delta: number) {
+    setOpen(true);
+    setActiveIndex((index) => {
+      const last = Math.max(filtered.length - 1, 0);
+      return Math.min(Math.max(index + delta, 0), last);
+    });
+  }
+
+  function onTriggerKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveActive(1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveActive(-1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (filtered[activeIndex]) {
+        commit(filtered[activeIndex].value);
+      } else if (editable && allowCustom) {
+        setOpen(false);
+        setTyping(false);
+      } else if (!editable) {
+        setOpen((prev) => !prev);
+      }
+    } else if (event.key === " " && !editable) {
+      event.preventDefault();
+      setOpen((prev) => !prev);
+    } else if (event.key === "Escape") {
+      closeAndRevert();
+    }
+  }
+
   const menu =
     open && menuBox ? (
       <div
@@ -156,84 +208,89 @@ export function Selector({
         <span className="text-body3-default text-secondary font-medium">{label}</span>
       ) : null}
 
-      <div
-        ref={triggerRef}
-        className={[
-          "border-core flex w-full items-center rounded-small border bg-core-surface",
-          "focus-within:border-brand-green",
-        ].join(" ")}
-      >
-        {leading ? (
-          <span className="text-tertiary flex shrink-0 items-center pl-2.5">{leading}</span>
-        ) : null}
+      {editable ? (
+        <div
+          ref={setTriggerEl}
+          className={[
+            "border-core flex w-full items-center rounded-small border bg-core-surface",
+            "focus-within:border-brand-green",
+          ].join(" ")}
+        >
+          {leading ? (
+            <span className="text-tertiary flex shrink-0 items-center pl-2.5">{leading}</span>
+          ) : null}
 
-        <input
-          ref={inputRef}
-          type="text"
-          role="combobox"
-          aria-expanded={open}
-          aria-autocomplete="list"
-          aria-label={label ?? placeholder}
-          className="text-body2-default min-w-0 flex-1 bg-transparent px-3 py-2 text-primary placeholder:text-tertiary focus:outline-none"
-          placeholder={placeholder}
-          value={inputValue}
-          onFocus={() => setOpen(true)}
-          onClick={() => setOpen(true)}
-          onChange={(event) => {
-            const next = event.target.value;
-            setTyping(true);
-            setQuery(next);
-            setOpen(true);
-            if (allowCustom) onChange(next);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowDown") {
-              event.preventDefault();
+          <input
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-expanded={open}
+            aria-autocomplete="list"
+            aria-label={label ?? placeholder}
+            className="text-body2-default min-w-0 flex-1 bg-transparent px-3 py-2 text-primary placeholder:text-tertiary focus:outline-none"
+            placeholder={placeholder}
+            value={inputValue}
+            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setTyping(true);
+              setQuery(next);
               setOpen(true);
-              setActiveIndex((index) => Math.min(index + 1, Math.max(filtered.length - 1, 0)));
-            } else if (event.key === "ArrowUp") {
-              event.preventDefault();
-              setActiveIndex((index) => Math.max(index - 1, 0));
-            } else if (event.key === "Enter") {
-              event.preventDefault();
-              if (filtered[activeIndex]) {
-                commit(filtered[activeIndex].value);
-              } else if (allowCustom) {
-                setOpen(false);
-                setTyping(false);
-              }
-            } else if (event.key === "Escape") {
-              closeAndRevert();
-            }
-          }}
-        />
+              if (allowCustom) onChange(next);
+            }}
+            onKeyDown={onTriggerKeyDown}
+          />
 
-        {clearable && value ? (
+          {clearable && value ? (
+            <button
+              type="button"
+              aria-label="Clear selection"
+              className="text-tertiary hover:text-primary flex h-8 w-8 shrink-0 items-center justify-center text-xs"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={clear}
+            >
+              ✕
+            </button>
+          ) : null}
+
           <button
             type="button"
-            aria-label="Clear selection"
+            aria-label="Toggle options"
+            tabIndex={-1}
             className="text-tertiary hover:text-primary flex h-8 w-8 shrink-0 items-center justify-center text-xs"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={clear}
+            onClick={() => {
+              setOpen((prev) => !prev);
+              if (!open) inputRef.current?.focus();
+            }}
           >
-            ✕
+            ▾
           </button>
-        ) : null}
-
+        </div>
+      ) : (
         <button
+          ref={setTriggerEl}
           type="button"
-          aria-label="Toggle options"
-          tabIndex={-1}
-          className="text-tertiary hover:text-primary flex h-8 w-8 shrink-0 items-center justify-center text-xs"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            setOpen((prev) => !prev);
-            if (!open) inputRef.current?.focus();
-          }}
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-label={label ?? placeholder}
+          className={[
+            "text-body2-heavy inline-flex items-center gap-2 rounded-small px-3 py-2",
+            "bg-brand-green-soft text-accent transition-opacity hover:opacity-90",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+          ].join(" ")}
+          onClick={() => setOpen((prev) => !prev)}
+          onKeyDown={onTriggerKeyDown}
         >
-          ▾
+          {leading ? <span className="flex shrink-0 items-center">{leading}</span> : null}
+          <span className="min-w-0 flex-1 truncate text-left">{displayLabel}</span>
+          <span className="shrink-0 text-xs" aria-hidden>
+            ▾
+          </span>
         </button>
-      </div>
+      )}
 
       {menu ? createPortal(menu, document.body) : null}
     </div>

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   value: string;
@@ -7,6 +8,8 @@ type Props = {
   max?: string;
   allowAll?: boolean;
   allLabel?: string;
+  ariaLabel?: string;
+  align?: "left" | "right";
 };
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -54,9 +57,14 @@ export function DatePicker({
   max,
   allowAll = true,
   allLabel = "All days",
+  ariaLabel = "Choose a day",
+  align = "right",
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [menuBox, setMenuBox] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const initial = parseDay(value || max || formatKey(new Date()));
   const [cursor, setCursor] = useState({ year: initial.getFullYear(), month: initial.getMonth() });
 
@@ -66,9 +74,36 @@ export function DatePicker({
     setCursor({ year: next.getFullYear(), month: next.getMonth() });
   }, [value]);
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuBox(null);
+      return;
+    }
+    function sync() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = 288;
+      const left =
+        align === "right"
+          ? Math.max(8, rect.right - width)
+          : Math.min(rect.left, window.innerWidth - width - 8);
+      setMenuBox({ top: rect.bottom + 8, left });
+    }
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("scroll", sync, true);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("scroll", sync, true);
+    };
+  }, [open, align]);
+
   useEffect(() => {
     function onDocClick(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     }
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
@@ -108,13 +143,14 @@ export function DatePicker({
   return (
     <div className="relative" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="Choose a day"
+        aria-label={ariaLabel}
         className={[
           "text-body2-heavy flex items-center gap-2 rounded-small border px-3 py-2 transition-colors",
-          open || value
+          open || (allowAll && value)
             ? "border-brand-green bg-brand-green-soft text-accent"
             : "border-core bg-core-surface text-primary hover:border-brand-green hover:bg-brand-green-soft/50",
         ].join(" ")}
@@ -124,11 +160,14 @@ export function DatePicker({
         <span>{triggerLabel}</span>
       </button>
 
-      {open ? (
+      {open && menuBox
+        ? createPortal(
         <div
+          ref={menuRef}
           role="dialog"
-          aria-label="Choose a day"
-          className="animate-dropdown border-core absolute right-0 z-30 mt-2 w-72 overflow-hidden rounded-default border bg-core-surface p-3 shadow-card"
+          aria-label={ariaLabel}
+          className="animate-dropdown border-core fixed w-72 overflow-hidden rounded-default border bg-core-surface p-3 shadow-card"
+          style={{ top: menuBox.top, left: menuBox.left, zIndex: 9999 }}
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <button
@@ -214,8 +253,10 @@ export function DatePicker({
               {allLabel}
             </button>
           ) : null}
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+    : null}
     </div>
   );
 }

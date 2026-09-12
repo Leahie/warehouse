@@ -75,7 +75,6 @@ export function FilterPopover({
       role="dialog"
       aria-label={`Filter ${title}`}
       onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
     >
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-h4-default text-primary m-0">Filter {title}</h4>
