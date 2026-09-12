@@ -321,6 +321,18 @@ def _reply_text(store: Store, mode: str, order: dict | None, parsed: dict) -> st
     return "Logged."
 
 
+def _finish(store: Store, doc: dict, result: dict) -> dict:
+    """Record the agent's reply alongside the worker's turn, then return it."""
+    store.record_agent_reply(
+        doc["event_id"],
+        result.get("reply") or "",
+        session_id=doc.get("session_id"),
+        order_id=(result.get("order") or {}).get("order_id"),
+        mode=result.get("mode"),
+    )
+    return result
+
+
 def ingest_voice_doc(store: Store, doc: dict) -> dict:
     parsed = doc.get("parsed") or crude_parse(doc.get("utterance") or "")
     if doc.get("in_reply_to") and not parsed.get("in_reply_to"):
@@ -350,10 +362,10 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
 
     if reply_to:
         order = store.answer_clarification(reply_to, doc, actor=doc.get("actor") or "ingest")
-        return {
+        return _finish(store, doc, {
             "event_id": doc["event_id"], "order": order, "mode": "clarification_answer",
             "reply": _reply_text(store, "clarification_answer", order, parsed),
-        }
+        })
     parsed = _merge_pending(store, doc.get("worker_id"), parsed)
     if not parsed.get("po_id") and doc.get("po_id"):
         parsed["po_id"] = doc["po_id"]
@@ -363,15 +375,15 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
     if not po_id:
         if offer:
             # Enough was heard to narrow it down, just not to settle it.
-            return {
+            return _finish(store, doc, {
                 "event_id": doc["event_id"], "order": None, "mode": "ambiguous",
                 "candidates": offer,
                 "reply": _offer_text(parsed, offer),
-            }
-        return {
+            })
+        return _finish(store, doc, {
             "event_id": doc["event_id"], "order": None, "mode": "unmatched",
             "reply": _reply_text(store, "unmatched", None, parsed),
-        }
+        })
     papers = store.papers_for_po(po_id)
     result = match_receipt(papers, parsed, store.temperature_limits(parsed.get("item")))
     order = store.apply_match(
@@ -381,10 +393,10 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         actor=doc.get("actor") or "ingest",
     )
     store.clear_pending_context(doc.get("worker_id"))
-    return {
+    return _finish(store, doc, {
         "event_id": doc["event_id"], "order": order, "mode": "receive",
         "reply": _reply_text(store, "receive", order, parsed),
-    }
+    })
 
 
 def ingest_path(store: Store, path: Path) -> None:

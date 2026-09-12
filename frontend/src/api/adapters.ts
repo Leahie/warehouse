@@ -119,6 +119,7 @@ export function toAlertCard(a: ApiAlert, orders: ApiOrder[]): AlertCard {
 // ---- voice sessions -------------------------------------------------------
 
 const STAGE_BY_KIND: Record<string, VoiceStage> = {
+  agent_replied: "confirming",
   voice_received: "parsing",
   voice_parsed: "confirming",
   clarification_asked: "confirming",
@@ -130,13 +131,16 @@ const STAGE_BY_KIND: Record<string, VoiceStage> = {
 const ROLE_BY_KIND: Record<string, ChatMessage["role"]> = {
   voice_received: "user",
   answer_received: "user",
-  voice_parsed: "agent",
+  agent_replied: "agent",
   clarification_asked: "agent",
+  // voice_parsed is the machine's reading of the utterance, not something the
+  // agent said. It is shown as a system note rather than a spoken turn.
+  voice_parsed: "system",
 };
 
 function textOf(e: ApiEvent): string {
   const p = (e.payload ?? {}) as Record<string, unknown>;
-  const direct = ["utterance", "question", "answer", "text", "note", "summary"]
+  const direct = ["reply", "utterance", "question", "answer", "text", "note", "summary"]
     .map((k) => p[k])
     .find((v) => typeof v === "string" && (v as string).trim());
   if (direct) return direct as string;

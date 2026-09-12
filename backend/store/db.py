@@ -141,6 +141,31 @@ class Store:
             )
         return doc
 
+    def record_agent_reply(
+        self,
+        event_id: str,
+        reply: str,
+        *,
+        session_id: str | None = None,
+        order_id: str | None = None,
+        mode: str | None = None,
+        actor: str = "agent",
+    ) -> None:
+        """The agent's spoken answer is part of the conversation, not a return value.
+
+        Without this the reply lives only in the HTTP response: refresh the page
+        and every agent turn disappears, leaving the raw parse events showing in
+        its place.
+        """
+        if not reply:
+            return
+        self.emit("agent_replied", "voice", actor, "voice_events", event_id, {
+            "reply": reply,
+            "session_id": session_id,
+            "order_id": order_id,
+            "mode": mode,
+        })
+
     def papers_for_po(self, po_id: str) -> dict[str, dict[str, Any] | None]:
         out: dict[str, dict[str, Any] | None] = {
             "purchase_order": None,
