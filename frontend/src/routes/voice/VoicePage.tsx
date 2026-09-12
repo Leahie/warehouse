@@ -6,13 +6,29 @@ import { ChatBubble } from "@/components/voice/ChatBubble";
 import { StageChip } from "@/components/voice/StageChip";
 import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
 import type { AlertCard } from "@/types/alert";
-import type { VoiceSession } from "@/types/voice";
+import type { ChatMessage, VoiceSession } from "@/types/voice";
 import { useVoiceSessions } from "@/api/useLiveData";
 import { useDockMic } from "@/audio/useDockMic";
 import { speechSupported, stopSpeaking } from "@/audio/speak";
 
 const seedSessions = voiceData as VoiceSession[];
 const seedIds = new Set(seedSessions.map((s) => s.session_id));
+
+// A scratch conversation so the dock can be demonstrated without a matching
+// order on file. Every turn that does not resolve to an order lands here
+// instead of disappearing.
+const SCRATCH_ID = "VS-SCRATCH";
+
+function blankScratch(): VoiceSession {
+  return {
+    session_id: SCRATCH_ID,
+    stage: "parsing",
+    is_alert: false,
+    created_at: new Date().toISOString(),
+    summary: null,
+    messages: [],
+  };
+}
 const alerts = alertsData as AlertCard[];
 
 function newBlankSession(): VoiceSession {
@@ -51,6 +67,8 @@ export function VoicePage() {
   const [localSessions, setLocalSessions] = useState<VoiceSession[]>([]);
   const [overrides, setOverrides] = useState<Record<string, VoiceSession>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The mic callback runs long after render, so it reads sessions through a ref.
+  const sessionsRef = useRef<VoiceSession[]>([]);
   const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions);
 
   const sessions = useMemo(() => {
@@ -61,15 +79,53 @@ export function VoicePage() {
     return [...localOnly, ...liveSessions].map((s) => overrides[s.session_id] ?? s);
   }, [liveSessions, localSessions, overrides]);
 
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
+
   // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
   const mic = useDockMic({
     onTurn: (turn) => {
-      // Jump to the order this turn touched so the transcript is on screen.
-      if (turn.order?.order_id) {
-        const id = `VS-${turn.order.order_id}`;
-        setSelectedId(id);
-        navigate(`/voice/${encodeURIComponent(id)}`);
+      const targetId = turn.order?.order_id ? `VS-${turn.order.order_id}` : SCRATCH_ID;
+      const now = new Date().toISOString();
+      const heard: ChatMessage = {
+        id: `u-${turn.event_id}`,
+        role: "user",
+        text: turn.utterance,
+        state: "parsed",
+        at: now,
+      };
+      const said: ChatMessage = {
+        id: `a-${turn.event_id}`,
+        role: "agent",
+        text: turn.reply,
+        at: now,
+      };
+
+      // Show the exchange now. Waiting for the next poll makes the dock feel
+      // broken, and an unresolved turn never arrives from the server at all.
+      setOverrides((prev) => {
+        const base =
+          prev[targetId] ??
+          sessionsRef.current.find((s) => s.session_id === targetId) ??
+          (targetId === SCRATCH_ID ? blankScratch() : null);
+        if (!base) return prev;
+        return {
+          ...prev,
+          [targetId]: {
+            ...base,
+            stage: turn.mode === "clarification_answer" ? "logging_data" : "confirming",
+            messages: [...base.messages, heard, said],
+          },
+        };
+      });
+      if (targetId === SCRATCH_ID) {
+        setLocalSessions((prev) =>
+          prev.some((s) => s.session_id === SCRATCH_ID) ? prev : [blankScratch(), ...prev],
+        );
       }
+      setSelectedId(targetId);
+      navigate(`/voice/${encodeURIComponent(targetId)}`);
     },
   });
 
@@ -248,6 +304,16 @@ export function VoicePage() {
     setSelectedId(blank.session_id);
   }
 
+  /** Open an empty conversation that is not attached to any order on file. */
+  function openScratch() {
+    setLocalSessions((prev) =>
+      prev.some((s) => s.session_id === SCRATCH_ID) ? prev : [blankScratch(), ...prev],
+    );
+    setOverrides((prev) => (prev[SCRATCH_ID] ? prev : { ...prev, [SCRATCH_ID]: blankScratch() }));
+    setSelectedId(SCRATCH_ID);
+    navigate(`/voice/${encodeURIComponent(SCRATCH_ID)}`);
+  }
+
   return (
     <section className="flex min-h-0 flex-1">
       <VoiceSidebar
@@ -307,6 +373,13 @@ export function VoicePage() {
               onClick={startNextLog}
             >
               Next log →
+            </button>
+            <button
+              type="button"
+              className="text-body2-default text-accent rounded-small border border-core px-4 py-2 hover:bg-brand-green-soft"
+              onClick={openScratch}
+            >
+              + Blank session
             </button>
 
             <div className="flex w-full items-center gap-3 border-t border-core pt-3">

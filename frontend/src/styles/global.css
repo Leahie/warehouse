@@ -188,6 +188,14 @@
     background-color: var(--color-core-surface-ii);
   }
 
+  .bg-negative {
+    background-color: var(--color-text-negative);
+  }
+
+  .bg-alert-wash {
+    background-color: var(--color-alert-wash);
+  }
+
   .bg-brand-green {
     background-color: var(--color-brand-green);
   }
