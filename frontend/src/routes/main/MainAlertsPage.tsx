@@ -3,8 +3,9 @@ import { AlertBadge } from "@/components/alerts/AlertBadge";
 import { AlertCard } from "@/components/alerts/AlertCard";
 import { WEEK_MS } from "@/constants/statuses";
 import type { AlertCard as AlertCardType } from "@/types/alert";
+import { useAlerts } from "@/api/useLiveData";
 
-const alerts = alertsData as AlertCardType[];
+const fallbackAlerts = alertsData as AlertCardType[];
 
 function isWithinLastWeek(iso: string, now = Date.now()) {
   const t = new Date(iso).getTime();
@@ -12,6 +13,7 @@ function isWithinLastWeek(iso: string, now = Date.now()) {
 }
 
 export function MainAlertsPage() {
+  const { data: alerts, isLive } = useAlerts(fallbackAlerts);
   const weekly = alerts
     .filter((alert) => isWithinLastWeek(alert.created_at))
     .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -20,7 +22,14 @@ export function MainAlertsPage() {
     <section className="page-pad flex min-h-0 flex-1 flex-col">
       <div className="mb-6 flex items-start justify-between gap-4">
         <h1 className="text-h1-default text-primary m-0">Alerts</h1>
-        <AlertBadge count={weekly.length} />
+        <div className="flex items-center gap-3">
+          {!isLive && (
+            <span className="text-body2-default text-secondary" title="Showing bundled sample data">
+              offline sample
+            </span>
+          )}
+          <AlertBadge count={weekly.length} />
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">

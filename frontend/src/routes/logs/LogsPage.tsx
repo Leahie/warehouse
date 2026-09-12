@@ -3,8 +3,9 @@ import logsData from "@/assets/data/logs_aggregates.json";
 import { LogsChart, type ChartBar } from "@/components/logs/LogsChart";
 import { TimeRangeControls } from "@/components/logs/TimeRangeControls";
 import type { LogsAggregateFile, LogsMode, StatusBreakdown } from "@/types/logs";
+import { useLogsAggregate } from "@/api/useLiveData";
 
-const data = logsData as LogsAggregateFile;
+const fallbackLogs = logsData as LogsAggregateFile;
 
 function emptyBreakdown(): StatusBreakdown {
   return { pending_clarification: 0, committed: 0, flagged: 0 };
@@ -29,12 +30,13 @@ function eachDay(start: string, end: string) {
   return days;
 }
 
-function resolveName(input: string) {
-  const names = Object.keys(data.manufacturers);
+function resolveName(input: string, aggregate: LogsAggregateFile) {
+  const names = Object.keys(aggregate.manufacturers);
   return names.find((n) => n.toLowerCase() === input.trim().toLowerCase()) ?? null;
 }
 
 export function LogsPage() {
+  const { data } = useLogsAggregate(fallbackLogs);
   const [start, setStart] = useState("2026-09-10");
   const [end, setEnd] = useState("2026-09-12");
   const [mode, setMode] = useState<LogsMode | null>("multiple");
@@ -52,7 +54,7 @@ export function LogsPage() {
       const days = eachDay(start, rangeEnd);
       const nextBars = names
         .map((raw) => {
-          const name = resolveName(raw);
+          const name = resolveName(raw, data);
           if (!name) return null;
           const byDay = data.manufacturers[name];
           const quantities = days.reduce((acc, day) => {
@@ -62,7 +64,7 @@ export function LogsPage() {
         })
         .filter((bar): bar is ChartBar => bar !== null);
 
-      const missing = names.filter((raw) => !resolveName(raw));
+      const missing = names.filter((raw) => !resolveName(raw, data));
       return {
         bars: nextBars,
         error: missing.length
@@ -72,7 +74,7 @@ export function LogsPage() {
     }
 
     // Single mode
-    const name = resolveName(names[0] ?? "");
+    const name = resolveName(names[0] ?? "", data);
     if (!name) {
       return {
         bars: [],
@@ -94,7 +96,7 @@ export function LogsPage() {
   }, [mode, start, end, names]);
 
   function handleAddManufacturer(manufacturerToAdd: string) {
-    const resolved = resolveName(manufacturerToAdd);
+    const resolved = resolveName(manufacturerToAdd, data);
     if (!resolved) return;
     if (names.includes(resolved)) return;
     setNames((prev) => [...prev, resolved]);
@@ -171,7 +173,7 @@ export function LogsPage() {
       <LogsChart
         bars={bars}
         mode={mode}
-        singleManufacturerName={resolveName(names[0] ?? "") ?? names[0]}
+        singleManufacturerName={resolveName(names[0] ?? "", data) ?? names[0]}
         showAdd={mode === "multiple" && bars.length > 0}
         onAddManufacturer={handleAddManufacturer}
         availableManufacturers={availableToAdd}

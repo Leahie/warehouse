@@ -8,8 +8,9 @@ import {
 import { SearchableDropdown } from "@/components/database/SearchableDropdown";
 import { StatusChip } from "@/components/database/StatusChip";
 import type { OrderRow } from "@/types/order";
+import { useOrders } from "@/api/useLiveData";
 
-const orders = ordersData as OrderRow[];
+const fallbackOrders = ordersData as OrderRow[];
 
 const COLUMNS: { key: ColumnKey; title: string }[] = [
   { key: "date", title: "Date" },
@@ -69,6 +70,7 @@ function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
 }
 
 export function DatabasePage() {
+  const { data: orders } = useOrders(fallbackOrders);
   const [filters, setFilters] = useState<ColumnFilterState>({});
   const [draft, setDraft] = useState<ColumnFilterState>({});
   const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);

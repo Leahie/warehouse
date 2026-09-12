@@ -7,8 +7,10 @@ import { StageChip } from "@/components/voice/StageChip";
 import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
 import type { AlertCard } from "@/types/alert";
 import type { VoiceSession } from "@/types/voice";
+import { useVoiceSessions } from "@/api/useLiveData";
 
 const seedSessions = voiceData as VoiceSession[];
+const seedIds = new Set(seedSessions.map((s) => s.session_id));
 const alerts = alertsData as AlertCard[];
 
 function newBlankSession(): VoiceSession {
@@ -40,6 +42,20 @@ export function VoicePage() {
   const [searchParams] = useSearchParams();
   const [sessions, setSessions] = useState<VoiceSession[]>(seedSessions);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { data: liveSessions } = useVoiceSessions(seedSessions);
+
+  // Fold server-derived sessions in on every poll without discarding sessions
+  // created locally (a live recording, or one opened from an alert). Seeded
+  // demo sessions drop out as soon as the API returns anything real.
+  useEffect(() => {
+    setSessions((prev) => {
+      const liveIds = new Set(liveSessions.map((s) => s.session_id));
+      const localOnly = prev.filter(
+        (s) => !liveIds.has(s.session_id) && !seedIds.has(s.session_id),
+      );
+      return [...localOnly, ...liveSessions];
+    });
+  }, [liveSessions]);
 
   // Sync with query params (?order=... or ?session=...)
   useEffect(() => {

@@ -19,11 +19,20 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Qwen3.6 is a reasoning model: it emits a thinking block before any answer, and
+# `content` stays null until that block closes. At max_tokens=400 the reasoning
+# alone consumed the whole budget (finish_reason="length", content=None), so every
+# investigation silently fell back to the deterministic path with used_llm=False.
+# Measured: this prompt needs ~2850 completion tokens to reach a verdict.
+MAX_TOKENS = int(os.environ.get("DOCKCHECK_MAX_TOKENS", "4000"))
+TIMEOUT_S = int(os.environ.get("DOCKCHECK_LLM_TIMEOUT", "180"))
+
+
 def _chat(messages: list[dict[str, str]]) -> str | None:
     body = json.dumps({
         "model": MODEL,
         "messages": messages,
-        "max_tokens": 400,
+        "max_tokens": MAX_TOKENS,
         "temperature": 0,
     }).encode()
     req = urllib.request.Request(
@@ -36,10 +45,21 @@ def _chat(messages: list[dict[str, str]]) -> str | None:
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
             payload = json.loads(resp.read().decode())
-        return payload["choices"][0]["message"]["content"]
-    except Exception:
+        choice = payload["choices"][0]
+        content = choice["message"].get("content")
+        if not content:
+            # Truncated mid-reasoning, or the model returned only a thinking block.
+            print(
+                f"[investigate] no content (finish_reason={choice.get('finish_reason')}, "
+                f"completion_tokens={payload.get('usage', {}).get('completion_tokens')}); "
+                f"raise DOCKCHECK_MAX_TOKENS (currently {MAX_TOKENS})"
+            )
+            return None
+        return content
+    except Exception as exc:
+        print(f"[investigate] LLM call failed: {exc!r}")
         return None
 
 
@@ -103,9 +123,14 @@ def run_investigation(query: str, store: Store | None = None) -> dict[str, Any]:
         {
             "role": "system",
             "content": (
-                "You are a receiving-dock forensics clerk. Use only the JSON snapshot. "
-                "Reply with JSON: {steps:[{n,action,hit,note}], verdict:string, "
-                "citation_ids:{order_ids:[], event_ids:[], doc_ids:[]}}"
+                "You are a receiving-dock forensics clerk. Use only the JSON snapshot; "
+                "never invent ids or quantities. Reply with JSON only, no prose:\n"
+                '{"steps":[{"n":1,"action":"short verb phrase",'
+                '"hit":"the id you looked at, e.g. RCV-PO-4419-ROM or PACK-3301",'
+                '"note":"what that record showed"}],'
+                '"verdict":"one or two sentences naming the item, the two quantities, and the cause",'
+                '"citation_ids":{"order_ids":[],"event_ids":[],"doc_ids":[]}}\n'
+                "\"hit\" MUST be an id string copied from the snapshot, never true/false."
             ),
         },
         {"role": "user", "content": f"Query: {query}\nSnapshot: {json.dumps(snapshot, default=str)[:8000]}"},
