@@ -244,7 +244,7 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
   }
 
   return [...groups.entries()]
-    .map(([key, evs]) => {
+    .map(([key, evs]): VoiceSession | null => {
       // The same utterance can be emitted twice (replay); keep one per seq.
       const ordered = [...new Map(evs.map((e) => [e.seq, e])).values()].sort(
         (a, b) => a.seq - b.seq,
