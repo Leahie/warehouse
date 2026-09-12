@@ -71,6 +71,67 @@ def _looks_like_name(candidate: str) -> bool:
     return 1 <= len(words) <= 4 and not _NOT_A_NAME.search(candidate)
 
 
+# The number has to be anchored to a temperature word, or "24 cases ... 80
+# degrees" reads the case count as the temperature.
+_TEMP_AFTER = re.compile(
+    r"(?P<sign>minus\s+|negative\s+|-)?(?P<value>\d{1,3}(?:\.\d)?)\s*"
+    r"(?:°\s*)?(?:(?P<unit>f|c)\b|degrees?\s*(?P<unit2>f|c|fahrenheit|celsius)?|"
+    r"(?P<unit3>fahrenheit|celsius))",
+    re.I,
+)
+_TEMP_BEFORE = re.compile(
+    r"\btemp(?:erature)?\b[^0-9]{0,24}?(?P<sign>minus\s+|negative\s+|-)?(?P<value>\d{1,3}(?:\.\d)?)"
+    r"\s*(?:°\s*)?(?P<unit>f|c|fahrenheit|celsius)?",
+    re.I,
+)
+_TEMP_CONTEXT = re.compile(r"\b(temp|temperature|degrees?|celsius|fahrenheit|thermometer)\b", re.I)
+
+
+def parse_temperature(text: str) -> dict:
+    """Temperature only counts when the number is attached to a temperature word."""
+    text = text or ""
+    if not _TEMP_CONTEXT.search(text):
+        return {"value": None, "unit": None}
+    m = _TEMP_AFTER.search(text) or _TEMP_BEFORE.search(text)
+    if not m:
+        return {"value": None, "unit": None}
+    groups = m.groupdict()
+    value = float(groups["value"])
+    if groups.get("sign"):
+        value = -value
+    raw_unit = next(
+        (groups.get(k) for k in ("unit", "unit2", "unit3") if groups.get(k)), None
+    )
+    unit = None
+    if raw_unit:
+        unit = "F" if raw_unit.lower().startswith("f") else "C"
+    # Bare "80 degrees" is Fahrenheit on a US dock, but guessing silently is
+    # worse than asking, so leave it unset and let the matcher clarify.
+    return {"value": value, "unit": unit}
+
+
+# What a worker actually says about a bad pallet.
+_BAD_QUALITY = re.compile(
+    r"\b(bad|spoiled|spoilt|rotten|rotting|mold|mould|mouldy|moldy|wilted|wilting|"
+    r"damaged|crushed|bruised|leaking|leaked|torn|ripped|smells?|stinks?|"
+    r"off|warm|thawed|melted|soggy|slimy|unusable|reject(?:ed)?)\b",
+    re.I,
+)
+# "fresh" is excluded on purpose: it appears in supplier names ("Fresh Farms")
+# far more often than as a quality report.
+_GOOD_QUALITY = re.compile(
+    r"\b(looks good|looks fine|all good|no damage|undamaged|intact|in good shape)\b", re.I
+)
+
+
+def parse_quality(text: str) -> str | None:
+    if _BAD_QUALITY.search(text or ""):
+        return "bad"
+    if _GOOD_QUALITY.search(text or ""):
+        return "good"
+    return None
+
+
 def crude_parse(utterance: str) -> dict:
     """Pull what we can out of a spoken line. Every field is best-effort.
 
@@ -135,7 +196,8 @@ def crude_parse(utterance: str) -> dict:
         "lot_code": lot_code,
         "po_id": (f"PO-{po.group(1)}" if po else None),
         "supplier": clean(supplier.group(1)) if supplier else None,
-        "temperature": {"value": None, "unit": None},
+        "temperature": parse_temperature(text),
+        "quality": parse_quality(text),
         "in_reply_to": None,
     }
 
@@ -245,6 +307,13 @@ def _reply_text(store: Store, mode: str, order: dict | None, parsed: dict) -> st
         ]
         if open_here:
             return open_here[0].get("question") or "Can you confirm that count?"
+        # A flagged receipt must not be read back as a clean one.
+        if order.get("status") == "flagged":
+            return (
+                f"I logged {order.get('quantity_received')} {order.get('item')}, "
+                f"lot {order.get('lot_code')}, and flagged it: "
+                f"{order.get('flag_reason')}. A supervisor alert is open."
+            )
         return (
             f"Logged {order.get('quantity_received')} {order.get('item')}, "
             f"lot {order.get('lot_code')}. That matches the paperwork. Committed."

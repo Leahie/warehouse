@@ -185,10 +185,11 @@ class Store:
             "quantity_expected": data.get("quantity_expected"),
             "quantity_received": data.get("quantity_received"),
             "unit": data.get("unit"),
-            "quality": existing.get("quality"),
+            # A worker's read of the pallet wins over a stale value.
+            "quality": data.get("quality") or existing.get("quality"),
+            "temperature": data.get("temperature") or existing.get("temperature"),
             "lot_code": data.get("lot_code"),
             "supplier": data.get("supplier"),
-            "temperature": existing.get("temperature"),
             "status": status,
             "match": {
                 "po_vs_bol": data.get("po_vs_bol"),
