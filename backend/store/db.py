@@ -141,6 +141,26 @@ class Store:
             )
         return doc
 
+    def rebind_session(self, old_session_id: str | None, new_session_id: str | None) -> int:
+        """Move an ad-hoc thread's events onto the session of the order it became.
+
+        A conversation often starts before anyone knows which receipt it is --
+        the worker names the item, the agent asks which delivery. Those turns are
+        stored under a temporary session id. When a later turn identifies the
+        order, the earlier turns have to move with it, or the exchange stays
+        split across two threads and the alert appears to have no conversation.
+        """
+        if not old_session_id or not new_session_id or old_session_id == new_session_id:
+            return 0
+        moved = self.db.voice_events.update_many(
+            {"session_id": old_session_id}, {"$set": {"session_id": new_session_id}}
+        ).modified_count
+        self.db.pipeline_events.update_many(
+            {"payload.session_id": old_session_id},
+            {"$set": {"payload.session_id": new_session_id}},
+        )
+        return moved
+
     def record_agent_reply(
         self,
         event_id: str,

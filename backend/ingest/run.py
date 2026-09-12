@@ -145,7 +145,7 @@ def crude_parse(utterance: str) -> dict:
     # A lot code is one token, or two when spoken as "C5217 15". Stop before a
     # following clause, or the match swallows "... from Pacific Pack 5".
     lot = re.search(
-        r"lot\s*(?:code|number|no\.?|#)?[:\s]\s*"
+        r"(?:lot|law|lock|lodge|slot)\s*(?:code|number|no\.?|#)?[:\s]\s*"
         r"([A-Za-z0-9][A-Za-z0-9-]*(?:\s+(?!from\b|at\b|in\b|on\b|for\b|of\b)\d[A-Za-z0-9-]*)?)",
         text,
         re.I,
@@ -423,6 +423,12 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
         actor=doc.get("actor") or "ingest",
     )
     store.clear_pending_context(doc.get("worker_id"))
+    # The thread started before we knew the order; bring its earlier turns along.
+    order_session = f"VS-{order.get('order_id')}" if order.get("order_id") else None
+    incoming = doc.get("session_id")
+    if incoming and order_session and incoming != order_session:
+        store.rebind_session(incoming, order_session)
+        doc["session_id"] = order_session
     return _finish(store, doc, {
         "event_id": doc["event_id"], "order": order, "mode": "receive",
         "reply": _reply_text(store, "receive", order, parsed),
