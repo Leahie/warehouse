@@ -145,7 +145,7 @@ def crude_parse(utterance: str) -> dict:
     # A lot code is one token, or two when spoken as "C5217 15". Stop before a
     # following clause, or the match swallows "... from Pacific Pack 5".
     lot = re.search(
-        r"(?:lot|law|lock|lodge|slot)\s*(?:code|number|no\.?|#)?[:\s]\s*"
+        r"(?:lot|law|lock|lodge|slot|lough|loch|log|lots|lodd)\s*(?:code|number|no\.?|#)?[:,\s]\s*"
         r"([A-Za-z0-9][A-Za-z0-9-]*(?:\s+(?!from\b|at\b|in\b|on\b|for\b|of\b)\d[A-Za-z0-9-]*)?)",
         text,
         re.I,
@@ -191,6 +191,16 @@ def crude_parse(utterance: str) -> dict:
         return out or None
 
     lot_code = clean(lot.group(1) if lot else None)
+    if not lot_code and not po:
+        # Fall back on the shape: letters followed by three or more digits,
+        # optionally hyphenated ("K3302", "C5217-15"). Whisper mangles the word
+        # "lot" in ways no homophone list will cover, but the code itself
+        # survives. A PO number is excluded -- it has its own field.
+        standalone = re.search(
+            r"(?<!\w)((?!po\d)[A-Za-z]{1,3}[- ]?\d{3,6}(?:[- ]\d{1,3})?)(?!\w)", text, re.I
+        )
+        if standalone:
+            lot_code = clean(standalone.group(1))
     if lot_code:
         # "C5217 15" and "C5217-15" are the same code spoken two ways.
         lot_code = re.sub(r"\s+", "-", lot_code)
