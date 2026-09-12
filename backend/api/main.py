@@ -211,6 +211,15 @@ def heartbeat():
     return _jsonify(store.work_snapshot())
 
 
+@app.get("/api/progress")
+def progress(po_id: str | None = None):
+    """Fulfilment of the paperwork on file: what has been checked in so far."""
+    data = store.receiving_progress()
+    if po_id:
+        data["by_po"] = [e for e in data["by_po"] if e["po_id"] == po_id]
+    return _jsonify(data)
+
+
 @app.get("/api/settings/temperature")
 def get_temperature_settings():
     return _jsonify(store.get_temperature_settings())

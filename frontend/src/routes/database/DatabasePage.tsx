@@ -8,7 +8,7 @@ import {
 import { SearchableDropdown } from "@/components/database/SearchableDropdown";
 import { StatusChip } from "@/components/database/StatusChip";
 import type { OrderRow } from "@/types/order";
-import { useOrders } from "@/api/useLiveData";
+import { useExpectedReceipts, useProgress } from "@/api/useLiveData";
 
 const fallbackOrders = ordersData as OrderRow[];
 
@@ -70,7 +70,9 @@ function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
 }
 
 export function DatabasePage() {
-  const { data: orders } = useOrders(fallbackOrders);
+  // Show what the warehouse is expecting, not only what has been received.
+  const { data: orders } = useExpectedReceipts(fallbackOrders);
+  const { data: progress } = useProgress();
   const [filters, setFilters] = useState<ColumnFilterState>({});
   const [draft, setDraft] = useState<ColumnFilterState>({});
   const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);
@@ -141,6 +143,16 @@ export function DatabasePage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-h1-default text-primary m-0">Database Visualizer</h1>
+        {progress && (
+          <p className="text-body2-default text-secondary m-0 mt-1">
+            {progress.totals.lines_checked_in} of {progress.totals.lines_total} expected lines
+            checked in · {progress.totals.quantity_received}/{progress.totals.quantity_expected} units
+            ({progress.totals.percent_received}%)
+            {progress.totals.flagged_lines > 0 && (
+              <span className="text-negative"> · {progress.totals.flagged_lines} flagged</span>
+            )}
+          </p>
+        )}
           <p className="text-body3-default text-tertiary mt-1 mb-0">
             Real-time receipt ledger. Double-click any column header to filter.
           </p>

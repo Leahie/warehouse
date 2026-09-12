@@ -1,4 +1,5 @@
 export type OrderStatus =
+  | "awaiting"
   | "pending_clarification"
   | "committed"
   | "flagged"

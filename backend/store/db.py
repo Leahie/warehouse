@@ -430,8 +430,70 @@ class Store:
                     "quantity_received": (order or {}).get("quantity_received"),
                     "quantity_expected": (order or {}).get("quantity_expected") or qty_po,
                     "flag_reason": (order or {}).get("flag_reason"),
+                    # A PO line exists the moment the paperwork lands; it stays
+                    # awaiting until a worker checks it in at the dock.
+                    "receipt_status": (order or {}).get("status") or "awaiting",
+                    "quantity_outstanding": (
+                        None
+                        if qty_po is None
+                        else max(0, qty_po - ((order or {}).get("quantity_received") or 0))
+                    ),
+                    "checked_in": bool(order),
                 })
         return rows
+
+    def receiving_progress(self) -> dict[str, Any]:
+        """How much of the paperwork on file has actually arrived at the dock.
+
+        Purchase orders create expected lines; a line is only fulfilled once a
+        worker checks it in. This is that ratio, overall and per purchase order.
+        """
+        rows = self.list_expected_receipts()
+        by_po: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            po_id = row["po_id"]
+            entry = by_po.setdefault(po_id, {
+                "po_id": po_id,
+                "bol_id": row.get("bol_id"),
+                "supplier": row.get("supplier"),
+                "lines_total": 0,
+                "lines_checked_in": 0,
+                "quantity_expected": 0,
+                "quantity_received": 0,
+                "flagged": 0,
+                "awaiting": 0,
+            })
+            entry["lines_total"] += 1
+            entry["quantity_expected"] += row.get("quantity_po") or 0
+            if row["checked_in"]:
+                entry["lines_checked_in"] += 1
+                entry["quantity_received"] += row.get("quantity_received") or 0
+            else:
+                entry["awaiting"] += 1
+            if row.get("receipt_status") == "flagged":
+                entry["flagged"] += 1
+
+        for entry in by_po.values():
+            expected = entry["quantity_expected"]
+            entry["percent_received"] = (
+                round(100 * entry["quantity_received"] / expected, 1) if expected else 0.0
+            )
+            entry["complete"] = entry["awaiting"] == 0
+
+        totals = {
+            "purchase_orders": len(by_po),
+            "lines_total": sum(e["lines_total"] for e in by_po.values()),
+            "lines_checked_in": sum(e["lines_checked_in"] for e in by_po.values()),
+            "quantity_expected": sum(e["quantity_expected"] for e in by_po.values()),
+            "quantity_received": sum(e["quantity_received"] for e in by_po.values()),
+            "flagged_lines": sum(e["flagged"] for e in by_po.values()),
+            "purchase_orders_complete": sum(1 for e in by_po.values() if e["complete"]),
+        }
+        totals["percent_received"] = (
+            round(100 * totals["quantity_received"] / totals["quantity_expected"], 1)
+            if totals["quantity_expected"] else 0.0
+        )
+        return {"totals": totals, "by_po": sorted(by_po.values(), key=lambda e: e["po_id"])}
 
     def get_order(self, order_id: str) -> dict[str, Any] | None:
         order = self.db.orders.find_one({"order_id": order_id}, {"_id": 0})

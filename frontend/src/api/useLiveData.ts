@@ -2,8 +2,19 @@
 // API is unreachable, so the UI still renders on a laptop with no backend.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchAlerts, fetchEvents, fetchOrders, type ApiAlert, type ApiEvent, type ApiOrder } from "./client";
-import { toAlertCard, toLogsAggregate, toOrderRow, toVoiceSessions } from "./adapters";
+import {
+  fetchAlerts,
+  fetchEvents,
+  fetchExpected,
+  fetchOrders,
+  fetchProgress,
+  type ApiAlert,
+  type ApiEvent,
+  type ApiExpectedReceipt,
+  type ApiOrder,
+  type ApiProgress,
+} from "./client";
+import { expectedToOrderRow, toAlertCard, toLogsAggregate, toOrderRow, toVoiceSessions } from "./adapters";
 import type { OrderRow } from "@/types/order";
 import type { AlertCard } from "@/types/alert";
 import type { VoiceSession } from "@/types/voice";
@@ -74,6 +85,32 @@ export function useOrders(fallback: OrderRow[]): Live<OrderRow[]> {
       error,
     }),
     [value, error, settled, fallback],
+  );
+}
+
+/**
+ * Every line the warehouse is expecting, checked in or not. The orders endpoint
+ * only knows about receipts a worker has already spoken for, which makes an
+ * empty dock look like an empty database.
+ */
+export function useExpectedReceipts(fallback: OrderRow[]): Live<OrderRow[]> {
+  const { value, error, settled } = usePoll<ApiExpectedReceipt[]>((s) => fetchExpected(s));
+  return useMemo(
+    () => ({
+      data: value ? value.map(expectedToOrderRow) : settled ? fallback : [],
+      isLive: value !== null,
+      isLoading: !settled,
+      error,
+    }),
+    [value, error, settled, fallback],
+  );
+}
+
+export function useProgress(): Live<ApiProgress | null> {
+  const { value, error, settled } = usePoll<ApiProgress>((s) => fetchProgress(s));
+  return useMemo(
+    () => ({ data: value, isLive: value !== null, isLoading: !settled, error }),
+    [value, error, settled],
   );
 }
 

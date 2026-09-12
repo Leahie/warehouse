@@ -3,13 +3,14 @@
 // API does not store (industry, ai_summary); those are derived here rather than
 // added to the backend, so contracts/api.json stays the single source of truth.
 
-import type { ApiAlert, ApiEvent, ApiOrder } from "./client";
+import type { ApiAlert, ApiEvent, ApiExpectedReceipt, ApiOrder } from "./client";
 import type { OrderRow, OrderStatus } from "@/types/order";
 import type { AlertCard, AlertSeverity } from "@/types/alert";
 import type { ChatMessage, VoiceSession, VoiceStage } from "@/types/voice";
 import type { LogsAggregateFile, StatusBreakdown } from "@/types/logs";
 
 const ORDER_STATUSES: OrderStatus[] = [
+  "awaiting",
   "pending_clarification",
   "committed",
   "flagged",
@@ -54,6 +55,28 @@ export function toOrderRow(o: ApiOrder): OrderRow {
     industry: industryFor(o.item),
     status: toStatus(o.status),
     flagged_by: o.flagged_by ?? null,
+  };
+}
+
+/**
+ * A purchase-order line is a receipt the warehouse is expecting. It exists as
+ * soon as the paperwork lands and stays "awaiting" until a worker checks it in,
+ * which is what makes fulfilment visible rather than only completed receipts.
+ */
+export function expectedToOrderRow(r: ApiExpectedReceipt): OrderRow {
+  return {
+    order_id: r.order_id ?? `${r.po_id}-${(r.sku ?? r.item ?? "").toString()}`,
+    date: "",
+    time_process_finished: "",
+    item: r.item,
+    quantity_received: r.quantity_received ?? 0,
+    quantity_expected: r.quantity_expected ?? r.quantity_po ?? 0,
+    quality: null,
+    supplier: r.supplier ?? "unknown",
+    lot_code: "",
+    industry: industryFor(r.item),
+    status: toStatus(r.receipt_status),
+    flagged_by: r.flag_reason ? "matcher" : null,
   };
 }
 
