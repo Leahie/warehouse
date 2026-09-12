@@ -314,7 +314,16 @@ function pickVoiceSessions(all: VoiceSession[], max: number): VoiceSession[] {
   return [...keptLive, ...done.slice(0, max - keptLive.length)];
 }
 
-export function useVoiceSessions(fallback: VoiceSession[]): Live<VoiceSession[]> {
+/**
+ * @param pin session id or order id that must appear in the result even if it
+ *   falls outside the recent window -- following an alert to an older
+ *   conversation has to work, and the cap is only there to keep the sidebar
+ *   cheap to render.
+ */
+export function useVoiceSessions(
+  fallback: VoiceSession[],
+  pin?: string | null,
+): Live<VoiceSession[]> {
   const { value, error, settled } = usePoll<{ events: ApiEvent[]; orders: ApiOrder[] }>(
     async (s) => ({ events: await fetchEvents("voice", s), orders: await fetchOrders(s) }),
   );
@@ -322,14 +331,20 @@ export function useVoiceSessions(fallback: VoiceSession[]): Live<VoiceSession[]>
     const all = value ? toVoiceSessions(value.events, value.orders) : null;
     // Newest-first would keep every scratch / pending thread and hide the
     // completed seed logs. Keep a few live ones, then fill with archived.
-    const sessions = all ? pickVoiceSessions(all, MAX_SESSIONS) : null;
+    let sessions = all ? pickVoiceSessions(all, MAX_SESSIONS) : null;
+    if (all && sessions && pin) {
+      const pinned = all.find((s) => s.session_id === pin || s.order_id === pin);
+      if (pinned && !sessions.some((s) => s.session_id === pinned.session_id)) {
+        sessions = [pinned, ...sessions];
+      }
+    }
     return {
       data: sessions && sessions.length ? sessions : settled ? fallback : [],
       isLive: value !== null,
       isLoading: !settled,
       error,
     };
-  }, [value, error, settled, fallback]);
+  }, [value, error, settled, fallback, pin]);
 }
 
 const EMPTY_LOGS: LogsAggregateFile = { manufacturers: {} };

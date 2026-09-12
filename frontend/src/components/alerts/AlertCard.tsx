@@ -42,7 +42,7 @@ export function AlertCard({ alert, index }: Props) {
         : "var(--color-text-positive)";
 
   function handleClick() {
-    navigate(`/voice?order=${encodeURIComponent(alert.order_id)}`);
+    navigate(`/voice?order=${encodeURIComponent(alert.order_id)}&focus=1`);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {

@@ -145,7 +145,7 @@ def crude_parse(utterance: str) -> dict:
     # A lot code is one token, or two when spoken as "C5217 15". Stop before a
     # following clause, or the match swallows "... from Pacific Pack 5".
     lot = re.search(
-        r"(?:lot|law|lock|lodge|slot)\s*(?:code|number|no\.?|#)?[:\s]\s*"
+        r"(?:lot|law|lock|lodge|slot|lough|loch|log|lots|lodd)\s*(?:code|number|no\.?|#)?[:,\s]\s*"
         r"([A-Za-z0-9][A-Za-z0-9-]*(?:\s+(?!from\b|at\b|in\b|on\b|for\b|of\b)\d[A-Za-z0-9-]*)?)",
         text,
         re.I,
@@ -177,6 +177,13 @@ def crude_parse(utterance: str) -> dict:
             re.I,
         )
 
+    # "kale, lot K3302" comes back as "K-Lot K-3302", and the item pattern then
+    # reads the item as "K". A commodity name is never one or two letters, so
+    # treat those as not heard and let the lot code identify the receipt.
+    def clean_item(value: str | None) -> str | None:
+        out = (value or "").strip().strip(".,;:").lower()
+        return out if len(out) >= 3 else None
+
     def clean(value: str | None) -> str | None:
         if not value:
             return None
@@ -184,13 +191,23 @@ def crude_parse(utterance: str) -> dict:
         return out or None
 
     lot_code = clean(lot.group(1) if lot else None)
+    if not lot_code and not po:
+        # Fall back on the shape: letters followed by three or more digits,
+        # optionally hyphenated ("K3302", "C5217-15"). Whisper mangles the word
+        # "lot" in ways no homophone list will cover, but the code itself
+        # survives. A PO number is excluded -- it has its own field.
+        standalone = re.search(
+            r"(?<!\w)((?!po\d)[A-Za-z]{1,3}[- ]?\d{3,6}(?:[- ]\d{1,3})?)(?!\w)", text, re.I
+        )
+        if standalone:
+            lot_code = clean(standalone.group(1))
     if lot_code:
         # "C5217 15" and "C5217-15" are the same code spoken two ways.
         lot_code = re.sub(r"\s+", "-", lot_code)
 
     return {
         "intent": "receive",
-        "item": (clean(item.group(1)).lower() if item and clean(item.group(1)) else None),
+        "item": clean_item(item.group(1)) if item else None,
         "quantity": int(qty.group(1)) if qty else None,
         "unit": (qty.group(2).lower() if qty else None),
         "lot_code": lot_code,
@@ -224,6 +241,12 @@ def _merge_pending(store: Store, worker_id: str | None, parsed: dict) -> dict:
     away the half of the identification the worker already gave.
     """
     if not worker_id:
+        return parsed
+    # A lot code or PO number identifies the receipt outright. Carrying anything
+    # forward then can only contradict it -- an inherited item from the previous
+    # pallet outvoted a lot code that was heard correctly, and the receipt
+    # resolved to the wrong order entirely.
+    if parsed.get("lot_code") or parsed.get("po_id"):
         return parsed
     merged = dict(parsed)
     for prior in store.pending_context(worker_id):

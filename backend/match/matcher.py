@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from match.resolve import norm_code
+
 
 def _norm(value: Any) -> Any:
     if value is None:
@@ -164,7 +166,7 @@ def match_receipt(
                 "supplier",
             )
         )
-    if lot_slip and lot_voice and _norm(lot_slip) != _norm(lot_voice):
+    if lot_slip and lot_voice and norm_code(lot_slip) != norm_code(lot_voice):
         mismatches.append(_field(None, None, lot_slip, lot_voice, "lot_code"))
 
     office_broken = qty_pair_po_bol == "mismatch" or item_po_bol == "mismatch" or supplier_po_bol == "mismatch"
@@ -181,7 +183,11 @@ def match_receipt(
     temp = parsed.get("temperature") or {}
     temp_f = _to_fahrenheit(temp.get("value"), temp.get("unit"))
     quality = parsed.get("quality")
-    lot_mismatch = bool(lot_slip and lot_voice and _norm(lot_slip) != _norm(lot_voice))
+    # Spoken lot codes lose or gain punctuation -- "K-3302" for K3302 -- so
+    # compare the alphanumerics only, or every receipt looks like a lot mismatch.
+    lot_mismatch = bool(
+        lot_slip and lot_voice and norm_code(lot_slip) != norm_code(lot_voice)
+    )
 
     if office_broken:
         status = "flagged"
