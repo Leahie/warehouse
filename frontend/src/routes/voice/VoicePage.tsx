@@ -7,7 +7,7 @@ import { StageChip } from "@/components/voice/StageChip";
 import { VoiceSidebar } from "@/components/voice/VoiceSidebar";
 import type { AlertCard } from "@/types/alert";
 import type { ChatMessage, VoiceSession } from "@/types/voice";
-import { useVoiceSessions } from "@/api/useLiveData";
+import { useAlerts, useVoiceSessions } from "@/api/useLiveData";
 import { useDockMic } from "@/audio/useDockMic";
 import { speechSupported, stopSpeaking } from "@/audio/speak";
 
@@ -31,7 +31,7 @@ function blankScratch(id: string = newScratchId()): VoiceSession {
     messages: [],
   };
 }
-const alerts = alertsData as AlertCard[];
+const fallbackAlerts = alertsData as AlertCard[];
 
 export function VoicePage() {
   const [searchParams] = useSearchParams();
@@ -54,6 +54,10 @@ export function VoicePage() {
   // conversation reached from an alert.
   const pinnedId = routeSessionId ?? searchParams.get("order") ?? selectedId;
   const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions, pinnedId);
+  // The placeholder describes an alert, so it has to describe the live one --
+  // reading the bundled fixture reported a reason the database never held.
+  const { data: liveAlerts } = useAlerts(fallbackAlerts);
+  const alerts: AlertCard[] = liveAlerts.length ? liveAlerts : fallbackAlerts;
 
   const sessions = useMemo(() => {
     const liveIds = new Set(liveSessions.map((s) => s.session_id));
@@ -67,6 +71,22 @@ export function VoicePage() {
     sessionsRef.current = sessions;
   }, [sessions]);
 
+  // Overrides are an optimistic layer: they show a turn before the poll catches
+  // up. Once the server reports the same conversation as finished, its copy is
+  // the better one -- keeping the local version forever means any divergence
+  // persists until the page is reloaded.
+  useEffect(() => {
+    setOverrides((prev) => {
+      const stale = liveSessions.filter(
+        (s) => s.stage === "done" && prev[s.session_id],
+      );
+      if (!stale.length) return prev;
+      const next = { ...prev };
+      for (const s of stale) delete next[s.session_id];
+      return next;
+    });
+  }, [liveSessions]);
+
   // Live dock mic: record -> Whisper on the GB10 -> match -> the agent speaks back.
   const mic = useDockMic({
     contextOrderId: currentOrderRef.current,
@@ -78,6 +98,8 @@ export function VoicePage() {
       // Where the exchange lives. A thread already tied to an order stays put.
       // An ad-hoc thread that has just identified an order graduates into that
       // order's conversation, carrying every message with it so nothing splits.
+      const settled =
+        turn.order?.status === "committed" || turn.order?.status === "flagged";
       const startedIn = viewing ?? newScratchId();
       const targetId = isScratch(startedIn) && orderThread ? orderThread : startedIn;
       const migrating = targetId !== startedIn;
@@ -109,7 +131,14 @@ export function VoicePage() {
           session_id: targetId,
           order_id: turn.order?.order_id ?? base.order_id,
           is_alert: turn.order?.status === "flagged" || base.is_alert,
-          stage: turn.mode === "clarification_answer" ? "logging_data" : "confirming",
+          // A conversation is finished when its receipt is settled. Leaving it
+          // on "confirming" kept a committed receipt sitting under In Progress
+          // until a refresh dropped the override and the server's view took over.
+          stage: settled
+            ? "done"
+            : turn.mode === "clarification_answer"
+              ? "logging_data"
+              : "confirming",
           messages: [...carried, ...base.messages, heard, said],
         };
         const next: Record<string, VoiceSession> = { ...prev, [targetId]: merged };
@@ -145,6 +174,10 @@ export function VoicePage() {
     const key = `${sessionParam ?? ""}|${orderParam ?? ""}`;
     if (key === "|") return;
     if (appliedDeepLink.current === key) return;
+    // The first render happens before any conversation has arrived. Deciding
+    // then that none exists writes the placeholder and marks the link handled,
+    // so the real thread never gets a chance -- the fallback always won the race.
+    if (isLoading) return;
 
     if (sessionParam) {
       const match = sessions.find((s) => s.session_id === sessionParam);
@@ -169,7 +202,7 @@ export function VoicePage() {
       // the worker saying what they counted and the agent questioning it. Only
       // when no exchange was ever recorded do we fall back to a placeholder, and
       // it says so rather than presenting itself as the conversation.
-      const alert = alerts.find((a) => a.order_id === orderParam);
+      const alert = alerts.find((a: AlertCard) => a.order_id === orderParam);
       if (alert) {
         const placeholder: VoiceSession = {
           session_id: `VS-ALERT-${alert.alert_id}`,
@@ -217,105 +250,6 @@ export function VoicePage() {
     currentOrderRef.current = current?.order_id ?? null;
     currentIdRef.current = currentId;
   }, [current, currentId]);
-
-  function playDemoStep() {
-    if (!current || current.stage === "done") return;
-
-    setOverrides((prev) => {
-      const advanced = ((session: VoiceSession): VoiceSession => {
-        if (session.stage === "parsing") {
-          const withoutSpeaking = session.messages.filter((m) => m.state !== "speaking");
-          return {
-            ...session,
-            stage: "confirming",
-            messages: [
-              ...withoutSpeaking,
-              {
-                id: `u-${Date.now()}`,
-                role: "user",
-                text: "receiving 24 flats strawberries, lot S4410, Berry Grove",
-                state: "parsed",
-                at: new Date().toISOString(),
-              },
-              {
-                id: `s-${Date.now() + 1}`,
-                role: "system",
-                text: "Confirming…",
-                at: new Date().toISOString(),
-              },
-              {
-                id: `a-${Date.now() + 2}`,
-                role: "agent",
-                text: "BoL says 24 flats, packing slip says 20. Can you confirm the count on the dock?",
-                at: new Date().toISOString(),
-              },
-            ],
-          };
-        }
-
-        if (session.stage === "confirming") {
-          return {
-            ...session,
-            stage: "correction",
-            messages: [
-              ...session.messages,
-              {
-                id: `s-${Date.now()}`,
-                role: "system",
-                text: "Correction…",
-                at: new Date().toISOString(),
-              },
-              {
-                id: `u-${Date.now() + 1}`,
-                role: "user",
-                text: "packing slip is wrong — there are 24 on the pallet",
-                state: "parsed",
-                at: new Date().toISOString(),
-              },
-            ],
-          };
-        }
-
-        if (session.stage === "correction") {
-          return {
-            ...session,
-            stage: "logging_data",
-            messages: [
-              ...session.messages,
-              {
-                id: `s-${Date.now()}`,
-                role: "system",
-                text: "Logging data…",
-                at: new Date().toISOString(),
-              },
-            ],
-          };
-        }
-
-        const summary =
-          "24 flats strawberries, lot S4410, Berry Grove — slip mismatch noted, worker confirmed 24.";
-        return {
-          ...session,
-          stage: "done",
-          is_alert: true,
-          item: session.item ?? "strawberries",
-          supplier: session.supplier ?? "Berry Grove Co",
-          lot_code: session.lot_code ?? "S4410",
-          summary,
-          messages: [
-            ...session.messages,
-            {
-              id: `a-${Date.now()}`,
-              role: "agent",
-              text: `Summary: ${summary}`,
-              at: new Date().toISOString(),
-            },
-          ],
-        };
-      })(current);
-      return { ...prev, [current.session_id]: advanced };
-    });
-  }
 
   /** Open an empty conversation that is not attached to any order on file. */
   function openScratch() {
@@ -375,15 +309,6 @@ export function VoicePage() {
           </div>
 
           <div className="border-core flex flex-wrap items-center justify-between gap-3 border-t bg-core-surface px-4 py-3">
-            <button
-              type="button"
-              className="text-body2-heavy rounded-small bg-brand-green px-4 py-2 text-on-brand transition-opacity disabled:opacity-40"
-              disabled={!current || current.stage === "done"}
-              onClick={playDemoStep}
-            >
-              Play demo step
-            </button>
-
             <div className="flex w-full items-center gap-3 border-t border-core pt-3">
               <button
                 type="button"
