@@ -1,0 +1,16 @@
+{
+  "doc_id": "PACK-3302",
+  "doc_type": "packing_slip",
+  "po_id": "PO-4420",
+  "supplier": "Berry Grove",
+  "lines": [
+    {
+      "sku": "STR-CLAM-12",
+      "item": "strawberries",
+      "quantity": 20,
+      "unit": "cases",
+      "lot_code": "B-441",
+      "unit_price_usd": null
+    }
+  ]
+}

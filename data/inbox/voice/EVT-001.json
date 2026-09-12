@@ -1,0 +1,20 @@
+{
+  "event_id": "EVT-001",
+  "worker_id": "W-17",
+  "time_start": "2026-09-12T14:02:11Z",
+  "time_end": null,
+  "utterance": "receiving 40 cases of romaine, lot R2298, from Fresh Farms",
+  "parsed": {
+    "intent": "receive",
+    "item": "romaine",
+    "quantity": 40,
+    "unit": "cases",
+    "lot_code": "R2298",
+    "supplier": "Fresh Farms",
+    "temperature": { "value": null, "unit": null },
+    "in_reply_to": null
+  },
+  "parse_confidence": 0.91,
+  "order_id": null,
+  "ingest_channel": "unspecified"
+}

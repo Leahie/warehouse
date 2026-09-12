@@ -1,0 +1,51 @@
+{
+  "base": "http://127.0.0.1:8787/api",
+  "note": "Console talks to this and nothing else. Poll GET /events every 1s. after is the last seq the UI has.",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/events",
+      "query": { "after": "int seq, default 0", "pane": "voice|database|search optional" },
+      "returns": { "events": ["pipeline_events rows with seq > after"] }
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "returns": { "orders": ["full order docs"] }
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id",
+      "returns": {
+        "order": {},
+        "documents": ["the three papers"],
+        "voice_events": [],
+        "alerts": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/alerts",
+      "returns": { "alerts": ["open alerts"] }
+    },
+    {
+      "method": "POST",
+      "path": "/orders/:id/flag",
+      "body": { "reason": "string", "source": "supervisor" },
+      "does": "store.flag(order_id, flagged_by=supervisor). Emits order_flagged + alert_opened. This is the only way the website turns a row red.",
+      "forbidden": "console must not $set status itself"
+    },
+    {
+      "method": "POST",
+      "path": "/investigate",
+      "body": { "query": "string" },
+      "returns": { "investigation_id": "INV-…" },
+      "does": "starts investigate skill. Does not touch orders."
+    },
+    {
+      "method": "GET",
+      "path": "/investigations/:id",
+      "returns": "investigations document including steps[] as they append"
+    }
+  ]
+}

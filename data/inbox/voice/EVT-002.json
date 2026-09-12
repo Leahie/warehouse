@@ -1,0 +1,20 @@
+{
+  "event_id": "EVT-002",
+  "worker_id": "W-17",
+  "time_start": "2026-09-12T14:04:40Z",
+  "time_end": null,
+  "utterance": "yeah that's right, only 40 on the pallet, not 50",
+  "parsed": {
+    "intent": "confirm_discrepancy",
+    "item": "romaine",
+    "quantity": 40,
+    "unit": "cases",
+    "lot_code": "R2298",
+    "supplier": "Fresh Farms",
+    "temperature": { "value": null, "unit": null },
+    "in_reply_to": "CLQ-001"
+  },
+  "parse_confidence": 0.88,
+  "order_id": "RCV-4419-ROM",
+  "ingest_channel": "unspecified"
+}

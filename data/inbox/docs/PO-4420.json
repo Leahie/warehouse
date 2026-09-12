@@ -1,0 +1,16 @@
+{
+  "doc_id": "PO-4420",
+  "doc_type": "purchase_order",
+  "po_id": "PO-4420",
+  "supplier": "Berry Grove",
+  "lines": [
+    {
+      "sku": "STR-CLAM-12",
+      "item": "strawberries",
+      "quantity": 20,
+      "unit": "cases",
+      "lot_code": null,
+      "unit_price_usd": 22.1
+    }
+  ]
+}

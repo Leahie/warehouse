@@ -1,0 +1,16 @@
+{
+  "doc_id": "BOL-8821",
+  "doc_type": "bill_of_lading",
+  "po_id": "PO-4419",
+  "supplier": "Fresh Farms",
+  "lines": [
+    {
+      "sku": "ROM-ICE-24",
+      "item": "romaine",
+      "quantity": 50,
+      "unit": "cases",
+      "lot_code": null,
+      "unit_price_usd": null
+    }
+  ]
+}

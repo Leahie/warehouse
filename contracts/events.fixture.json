@@ -1,0 +1,109 @@
+[
+  {
+    "seq": 1,
+    "kind": "document_ingested",
+    "pane": "database",
+    "actor": "ingest",
+    "collection": "source_documents",
+    "entity_id": "PO-4419",
+    "payload": { "doc_type": "purchase_order", "supplier": "Fresh Farms" }
+  },
+  {
+    "seq": 2,
+    "kind": "document_ingested",
+    "pane": "database",
+    "actor": "ingest",
+    "collection": "source_documents",
+    "entity_id": "BOL-8821",
+    "payload": { "doc_type": "bill_of_lading" }
+  },
+  {
+    "seq": 3,
+    "kind": "document_ingested",
+    "pane": "database",
+    "actor": "ingest",
+    "collection": "source_documents",
+    "entity_id": "PACK-3301",
+    "payload": { "doc_type": "packing_slip", "lot_code": "R2298" }
+  },
+  {
+    "seq": 4,
+    "kind": "voice_received",
+    "pane": "voice",
+    "actor": "ingest",
+    "collection": "voice_events",
+    "entity_id": "EVT-001",
+    "payload": {
+      "utterance": "receiving 40 cases of romaine, lot R2298, from Fresh Farms",
+      "worker_id": "W-17"
+    }
+  },
+  {
+    "seq": 5,
+    "kind": "voice_parsed",
+    "pane": "voice",
+    "actor": "ingest",
+    "collection": "voice_events",
+    "entity_id": "EVT-001",
+    "payload": {
+      "item": "romaine",
+      "quantity": 40,
+      "lot_code": "R2298",
+      "supplier": "Fresh Farms"
+    }
+  },
+  {
+    "seq": 6,
+    "kind": "order_upserted",
+    "pane": "database",
+    "actor": "ingest",
+    "collection": "orders",
+    "entity_id": "RCV-4419-ROM",
+    "payload": {
+      "status": "pending_clarification",
+      "quantity_received": 40,
+      "quantity_expected": 50
+    }
+  },
+  {
+    "seq": 7,
+    "kind": "clarification_asked",
+    "pane": "voice",
+    "actor": "ingest",
+    "collection": "clarifications",
+    "entity_id": "CLQ-001",
+    "payload": {
+      "question": "You said 40 cases, the PO expected 50 — can you confirm the count?"
+    }
+  },
+  {
+    "seq": 8,
+    "kind": "answer_received",
+    "pane": "voice",
+    "actor": "ingest",
+    "collection": "voice_events",
+    "entity_id": "EVT-002",
+    "payload": {
+      "intent": "confirm_discrepancy",
+      "utterance": "yeah that's right, only 40 on the pallet, not 50"
+    }
+  },
+  {
+    "seq": 9,
+    "kind": "order_flagged",
+    "pane": "database",
+    "actor": "ingest",
+    "collection": "orders",
+    "entity_id": "RCV-4419-ROM",
+    "payload": { "flagged_by": "worker_confirm", "flag_reason": "short-ship: 40 vs 50" }
+  },
+  {
+    "seq": 10,
+    "kind": "alert_opened",
+    "pane": "database",
+    "actor": "ingest",
+    "collection": "alerts",
+    "entity_id": "ALT-001",
+    "payload": { "order_id": "RCV-4419-ROM", "severity": "critical" }
+  }
+]

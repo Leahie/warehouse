@@ -1,0 +1,270 @@
+{
+  "database": "dockcheck",
+  "status_enum": [
+    "pending_match",
+    "pending_clarification",
+    "committed",
+    "flagged"
+  ],
+  "flagged_by_enum": [
+    "worker_confirm",
+    "heartbeat",
+    "three_way_mismatch",
+    "supervisor"
+  ],
+  "doc_type_enum": [
+    "purchase_order",
+    "bill_of_lading",
+    "packing_slip"
+  ],
+  "match_cell_enum": ["match", "mismatch", "missing"],
+  "collections": {
+    "workers": {
+      "purpose": "Dock workers. One row per person. Voice events and orders point here by worker_id.",
+      "unique": ["worker_id"],
+      "indexes": [["worker_id", { "unique": true }]],
+      "example": {
+        "worker_id": "W-17",
+        "name": "Maria Chen",
+        "role": "receiver",
+        "active": true,
+        "created_at": "ISODate"
+      }
+    },
+    "source_documents": {
+      "purpose": "The three papers that must agree: PO (paid for), bill of lading (agreed to send), packing slip (what was sent). Join on po_id.",
+      "unique": ["doc_id"],
+      "indexes": [
+        ["doc_id", { "unique": true }],
+        ["po_id", "doc_type"]
+      ],
+      "example": {
+        "doc_id": "PO-4419",
+        "doc_type": "purchase_order",
+        "po_id": "PO-4419",
+        "supplier": "Fresh Farms",
+        "received_at": "ISODate",
+        "source_path": "data/inbox/docs/PO-4419.json",
+        "lines": [
+          {
+            "sku": "ROM-ICE-24",
+            "item": "romaine",
+            "quantity": 50,
+            "unit": "cases",
+            "lot_code": null,
+            "unit_price_usd": 18.4
+          }
+        ],
+        "raw": {}
+      }
+    },
+    "voice_events": {
+      "purpose": "ONLY interface from the voice loop. Something upstream drops a parsed (or raw) utterance. This collection does not care about microphones, STT, or speakers.",
+      "unique": ["event_id"],
+      "indexes": [
+        ["event_id", { "unique": true }],
+        ["worker_id", "time_start"],
+        ["order_id"],
+        ["parsed.in_reply_to"]
+      ],
+      "example": {
+        "event_id": "EVT-001",
+        "worker_id": "W-17",
+        "time_start": "ISODate",
+        "time_end": null,
+        "utterance": "receiving 40 cases of romaine, lot R2298, from Fresh Farms",
+        "parsed": {
+          "intent": "receive",
+          "item": "romaine",
+          "quantity": 40,
+          "unit": "cases",
+          "lot_code": "R2298",
+          "supplier": "Fresh Farms",
+          "temperature": { "value": null, "unit": null },
+          "in_reply_to": null
+        },
+        "parse_confidence": 0.86,
+        "order_id": null,
+        "ingest_channel": "unspecified"
+      }
+    },
+    "orders": {
+      "purpose": "One row per received SKU on a PO. This is the Object Data Process box. Many voice events point at one order.",
+      "unique": ["order_id"],
+      "indexes": [
+        ["order_id", { "unique": true }],
+        ["po_id"],
+        ["status"],
+        ["worker_id", "time_process_started"]
+      ],
+      "example": {
+        "order_id": "RCV-4419-ROM",
+        "po_id": "PO-4419",
+        "bol_id": "BOL-8821",
+        "slip_id": "PACK-3301",
+        "worker_id": "W-17",
+        "item": "romaine",
+        "sku": "ROM-ICE-24",
+        "quantity_expected": 50,
+        "quantity_received": 40,
+        "unit": "cases",
+        "quality": null,
+        "lot_code": "R2298",
+        "supplier": "Fresh Farms",
+        "temperature": null,
+        "status": "flagged",
+        "match": {
+          "po_vs_bol": "match",
+          "bol_vs_slip": "match",
+          "slip_vs_voice": "mismatch",
+          "mismatches": [
+            {
+              "field": "quantity",
+              "po": 50,
+              "bol": 50,
+              "slip": 50,
+              "voice": 40
+            }
+          ]
+        },
+        "time_process_started": "ISODate",
+        "time_process_finished": "ISODate",
+        "voice_event_ids": ["EVT-001", "EVT-002"],
+        "clarification_ids": ["CLQ-001"],
+        "flag_reason": "short-ship: received 40 vs PO 50",
+        "flagged_by": "worker_confirm",
+        "created_at": "ISODate",
+        "updated_at": "ISODate"
+      }
+    },
+    "clarifications": {
+      "purpose": "ONLY interface TO the voice loop. Matcher/heartbeat writes a question. The voice loop (whatever it is) is responsible for getting it in front of a human and returning a voice_event with parsed.in_reply_to = this clarification_id.",
+      "unique": ["clarification_id"],
+      "indexes": [
+        ["clarification_id", { "unique": true }],
+        ["order_id"],
+        ["status"]
+      ],
+      "example": {
+        "clarification_id": "CLQ-001",
+        "order_id": "RCV-4419-ROM",
+        "question": "You said 40 cases, the PO expected 50 — can you confirm the count?",
+        "kind": "quantity",
+        "status": "answered",
+        "asked_at": "ISODate",
+        "answered_at": "ISODate",
+        "answer_event_id": "EVT-002",
+        "delivery_channel": "unspecified"
+      }
+    },
+    "alerts": {
+      "purpose": "Flagged-status fan-out. Supervisor board and heartbeat report read this. Do not duplicate order fields here; join on order_id.",
+      "unique": ["alert_id"],
+      "indexes": [["alert_id", { "unique": true }], ["order_id"], ["acknowledged"]],
+      "example": {
+        "alert_id": "ALT-001",
+        "order_id": "RCV-4419-ROM",
+        "severity": "critical",
+        "reason": "short-ship confirmed: 40 vs 50 cases romaine PO-4419",
+        "created_at": "ISODate",
+        "acknowledged": false
+      }
+    },
+    "shift_logs": {
+      "purpose": "Hourly compile. Same Mongo, separate collection (the sketch 'global database'). Each event carries a 5-d vector so visualizers share one log format.",
+      "unique": ["log_id"],
+      "indexes": [["log_id", { "unique": true }], ["hour_start"]],
+      "vector": {
+        "dims": [
+          "minutes_from_shift_start",
+          "worker_ordinal",
+          "status_code",
+          "qty_delta",
+          "mismatch_count"
+        ],
+        "status_code": {
+          "0": "pending_match",
+          "1": "pending_clarification",
+          "2": "committed",
+          "3": "flagged"
+        }
+      },
+      "example": {
+        "log_id": "LOG-2026-09-12-14",
+        "shift_date": "2026-09-12",
+        "hour_start": "ISODate",
+        "hour_end": "ISODate",
+        "worker_ids": ["W-17"],
+        "counts": {
+          "committed": 1,
+          "flagged": 1,
+          "pending_clarification": 0,
+          "pending_match": 0
+        },
+        "order_ids": ["RCV-4419-ROM", "RCV-4420-STR"],
+        "summary_md": "2 receipts. 1 short-ship flagged (romaine PO-4419, 40 vs 50).",
+        "events": [
+          {
+            "t": "ISODate",
+            "entity_id": "RCV-4419-ROM",
+            "kind": "order_flagged",
+            "worker_id": "W-17",
+            "vec": [14, 0, 3, -10, 1]
+          }
+        ]
+      }
+    },
+    "pipeline_events": {
+      "purpose": "Append-only log. The frontend never reads collections to 'see the agent work' — it tails this. Every backend write emits one row. seq is the cursor for GET /events?after=.",
+      "unique": ["seq"],
+      "indexes": [["seq", { "unique": true }], ["t"], ["pane", "seq"]],
+      "example": {
+        "seq": 12,
+        "t": "ISODate",
+        "kind": "order_upserted",
+        "pane": "database",
+        "actor": "ingest",
+        "collection": "orders",
+        "entity_id": "RCV-4419-ROM",
+        "payload": {
+          "status": "pending_clarification",
+          "item": "romaine",
+          "quantity_received": 40,
+          "quantity_expected": 50
+        }
+      }
+    },
+    "investigations": {
+      "purpose": "Forensic search skill output. Does not upsert orders. UI search pane reads this. Citations point at existing order_id / event_id / doc_id.",
+      "unique": ["investigation_id"],
+      "indexes": [["investigation_id", { "unique": true }], ["status"]],
+      "example": {
+        "investigation_id": "INV-001",
+        "query": "where did the romaine short-ship start?",
+        "status": "done",
+        "started_at": "ISODate",
+        "finished_at": "ISODate",
+        "steps": [
+          {
+            "n": 1,
+            "action": "search_orders",
+            "hit": "RCV-4419-ROM",
+            "note": "quantity_received 40 vs expected 50"
+          },
+          {
+            "n": 2,
+            "action": "search_voice_events",
+            "hit": "EVT-001",
+            "note": "utterance said 40"
+          }
+        ],
+        "verdict": "Mismatch began at EVT-001. Papers all say 50. Worker confirmed at EVT-002. Flagged by worker_confirm.",
+        "citation_ids": {
+          "order_ids": ["RCV-4419-ROM"],
+          "event_ids": ["EVT-001", "EVT-002"],
+          "doc_ids": ["PO-4419", "BOL-8821", "PACK-3301"]
+        }
+      }
+    }
+  }
+}

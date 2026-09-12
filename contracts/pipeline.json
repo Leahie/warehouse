@@ -1,0 +1,96 @@
+{
+  "stages": [
+    {
+      "id": "P0",
+      "name": "contracts",
+      "side": "shared",
+      "owns": ["contracts/"],
+      "writes": ["contracts/"],
+      "forbidden": ["application logic"]
+    },
+    {
+      "id": "P1",
+      "name": "sample-dc",
+      "side": "backend-data",
+      "owns": ["data/inbox/"],
+      "writes": ["data/inbox/**"],
+      "forbidden": ["Python", "UI"]
+    },
+    {
+      "id": "P2",
+      "name": "store",
+      "side": "backend",
+      "owns": ["backend/store/"],
+      "writes": ["dockcheck.*", "pipeline_events via emit()"],
+      "forbidden": ["match rules", "FastAPI routes", "UI"]
+    },
+    {
+      "id": "P3",
+      "name": "matcher",
+      "side": "backend",
+      "owns": ["backend/match/"],
+      "writes": ["MatchResult dict only"],
+      "forbidden": ["pymongo", "filesystem", "LLM", "HTTP"]
+    },
+    {
+      "id": "P4",
+      "name": "ingest",
+      "side": "backend",
+      "owns": ["backend/ingest/"],
+      "writes": ["store APIs"],
+      "forbidden": ["UI", "reimplementing match"]
+    },
+    {
+      "id": "P5",
+      "name": "voice_loop",
+      "side": "backend",
+      "owns": ["backend/voice/ later"],
+      "writes": ["voice_events via store"],
+      "forbidden": ["other collections"]
+    },
+    {
+      "id": "P6",
+      "name": "heartbeat",
+      "side": "backend",
+      "owns": ["backend/heartbeat/"],
+      "writes": ["alerts", "shift_logs", "stale flags via store"],
+      "forbidden": ["UI chrome"]
+    },
+    {
+      "id": "P7",
+      "name": "api",
+      "side": "backend",
+      "owns": ["backend/api/"],
+      "writes": ["nothing except by calling store"],
+      "forbidden": ["match internals", "direct pymongo in route handlers"]
+    },
+    {
+      "id": "P8",
+      "name": "investigate",
+      "side": "backend",
+      "owns": ["backend/investigate/"],
+      "writes": ["investigations via store"],
+      "forbidden": ["upserting orders", "changing status"]
+    },
+    {
+      "id": "P9",
+      "name": "console",
+      "side": "frontend",
+      "owns": ["console/"],
+      "writes": ["POST /api/orders/:id/flag", "POST /api/investigate"],
+      "forbidden": ["pymongo", "matcher", "ingest", "reading Mongo directly"]
+    }
+  ],
+  "runtime_order_one_utterance": [
+    "1. file lands in data/inbox (doc JSON, voice JSON, or wav)",
+    "2. ingest or voice_loop → store.insert_* → emit pipeline_event",
+    "3. ingest calls matcher(docs, parsed) → MatchResult (no IO)",
+    "4. store.upsert_order from MatchResult → emit order_upserted",
+    "5. if mismatch: store.open_clarification → emit clarification_asked; status pending_clarification",
+    "6. later answer event → matcher again → committed or flagged",
+    "7. if flagged: store.flag → alerts row + emit order_flagged, alert_opened",
+    "8. heartbeat every N min compiles shift_logs; may flag stale clarifications",
+    "9. frontend poll GET /events paints panes 1 and 2",
+    "10. search is a side door: POST /investigate → steps append → pane 3"
+  ]
+}

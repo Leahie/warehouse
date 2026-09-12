@@ -1,0 +1,32 @@
+{
+  "name": "voice_loop",
+  "status": "intentionally_unspecified",
+  "rule": "Do not pick Whisper, a headset, Slack, a TUI, or a speaker in this contract. Every other pipeline stage talks only to Mongo.",
+  "inbound_to_pipeline": {
+    "writes": "dockcheck.voice_events",
+    "required_fields": ["event_id", "worker_id", "time_start", "utterance"],
+    "optional_parsed": {
+      "intent": "receive | confirm_discrepancy | correct_entry | answer_clarification",
+      "item": "string",
+      "quantity": "number",
+      "unit": "string",
+      "lot_code": "string",
+      "supplier": "string",
+      "temperature": { "value": "number|null", "unit": "F|C|null" },
+      "in_reply_to": "clarification_id or null"
+    },
+    "if_parsed_missing": "matcher/OpenClaw skill fills parsed from utterance"
+  },
+  "outbound_from_pipeline": {
+    "reads": "dockcheck.clarifications where status=open",
+    "required_fields": ["clarification_id", "order_id", "question", "kind"],
+    "duty": "Get the question in front of the worker by whatever channel. When they answer, insert a new voice_event with parsed.in_reply_to = clarification_id and parsed.intent in {confirm_discrepancy, correct_entry, answer_clarification}."
+  },
+  "closed_loop": [
+    "matcher writes clarifications.status=open",
+    "voice_loop (TBD) delivers question",
+    "voice_loop (TBD) writes voice_events",
+    "matcher sees in_reply_to, sets clarifications.status=answered, then committed or flagged"
+  ],
+  "demo_stub_until_channel_exists": "Drop JSON files into data/inbox/voice/. That is a valid voice_loop for the hackathon."
+}

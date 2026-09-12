@@ -1,0 +1,20 @@
+{
+  "event_id": "EVT-003",
+  "worker_id": "W-17",
+  "time_start": "2026-09-12T14:11:02Z",
+  "time_end": null,
+  "utterance": "receiving 20 cases of strawberries, lot B-441, from Berry Grove",
+  "parsed": {
+    "intent": "receive",
+    "item": "strawberries",
+    "quantity": 20,
+    "unit": "cases",
+    "lot_code": "B-441",
+    "supplier": "Berry Grove",
+    "temperature": { "value": 34, "unit": "F" },
+    "in_reply_to": null
+  },
+  "parse_confidence": 0.93,
+  "order_id": null,
+  "ingest_channel": "unspecified"
+}

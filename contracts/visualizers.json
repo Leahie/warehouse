@@ -1,0 +1,26 @@
+{
+  "shared_rule": "One web app, three panes. All three subscribe to GET /api/events. Alerts are red paint on the database pane, not a fourth service.",
+  "panes": [
+    {
+      "id": "voice",
+      "name": "Voice processing",
+      "demo_role": "see the agent hear and ask",
+      "looks_like": "A vertical transcript. Left: worker utterance, then parsed slots appearing one by one. Right: agent clarification question. Optional later: play TTS. Until the voice loop exists, feeding EVT-001.json is enough to animate this pane.",
+      "events": ["voice_received", "voice_parsed", "clarification_asked", "answer_received"]
+    },
+    {
+      "id": "database",
+      "name": "Database + alerts",
+      "demo_role": "see the object land, then go red if invalid",
+      "looks_like": "A live collection view of orders. New rows slide in on order_upserted. The three-way match strip opens on click. Rows with status=flagged or an open alert render red. Supervisor can press Flag, which POSTs /orders/:id/flag — that is the website marking invalid. Do not build a second alert UI.",
+      "events": ["document_ingested", "order_upserted", "order_committed", "order_flagged", "alert_opened"]
+    },
+    {
+      "id": "search",
+      "name": "Forensic search",
+      "demo_role": "agent finds where the mistake started",
+      "looks_like": "A search box. Query example: 'where did the romaine count go wrong?'. Steps stream in as investigation_step. Each step cites an order, a voice event, or a paper. Verdict is a short paragraph with citation chips that jump to the database pane.",
+      "events": ["investigation_started", "investigation_step", "investigation_done"]
+    }
+  ]
+}

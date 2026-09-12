@@ -1,0 +1,16 @@
+{
+  "doc_id": "PO-4419",
+  "doc_type": "purchase_order",
+  "po_id": "PO-4419",
+  "supplier": "Fresh Farms",
+  "lines": [
+    {
+      "sku": "ROM-ICE-24",
+      "item": "romaine",
+      "quantity": 50,
+      "unit": "cases",
+      "lot_code": null,
+      "unit_price_usd": 18.4
+    }
+  ]
+}

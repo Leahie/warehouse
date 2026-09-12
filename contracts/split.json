@@ -1,0 +1,63 @@
+{
+  "rule": "Backend writes Mongo. Frontend paints Mongo. The only coupling is the HTTP API in contracts/api.json. Frontend never imports pymongo. Matcher never imports FastAPI. Search never upserts orders.",
+  "folders": {
+    "contracts/": "shared types. both sides may read. nobody else defines types.",
+    "data/": "fixtures. not imported by console.",
+    "backend/store/": "pymongo only",
+    "backend/match/": "pure function, no IO",
+    "backend/ingest/": "folder watcher → store",
+    "backend/heartbeat/": "cron → store",
+    "backend/investigate/": "search skill → investigations",
+    "backend/api/": "FastAPI. only process console may call.",
+    "console/": "one web app, three panes. talks only to /api."
+  },
+  "write_owners": {
+    "workers": "store",
+    "source_documents": "ingest via store",
+    "voice_events": "voice_loop or ingest via store",
+    "orders": "ingest/heartbeat via store. supervisor flag only through POST /orders/:id/flag",
+    "clarifications": "ingest/heartbeat via store",
+    "alerts": "store.flag() only",
+    "shift_logs": "heartbeat via store",
+    "pipeline_events": "store.emit() only. append-only. every other write must call this.",
+    "investigations": "investigate via store"
+  },
+  "frontend_writes": [
+    "POST /api/orders/:id/flag  (supervisor marks invalid — this is the website indicating red)",
+    "POST /api/investigate      (search pane)"
+  ],
+  "three_panes": {
+    "voice": {
+      "shows": "text/voice processing as the agent hears, parses, and asks",
+      "reads": "GET /api/events?pane=voice",
+      "kinds": [
+        "voice_received",
+        "voice_parsed",
+        "clarification_asked",
+        "answer_received"
+      ]
+    },
+    "database": {
+      "shows": "objects appearing in Mongo, with flagged/invalid rows painted red",
+      "reads": "GET /api/orders and GET /api/events?pane=database",
+      "red_when": "orders.status == flagged OR an open alert on that order_id. Red is a CSS class, not a fourth backend.",
+      "kinds": [
+        "document_ingested",
+        "order_upserted",
+        "order_committed",
+        "order_flagged",
+        "alert_opened"
+      ]
+    },
+    "search": {
+      "shows": "agent walking citations to find where the mistake started",
+      "reads": "GET /api/investigations/:id",
+      "writes": "POST /api/investigate",
+      "kinds": [
+        "investigation_started",
+        "investigation_step",
+        "investigation_done"
+      ]
+    }
+  }
+}

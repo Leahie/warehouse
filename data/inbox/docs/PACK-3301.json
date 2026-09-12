@@ -1,0 +1,16 @@
+{
+  "doc_id": "PACK-3301",
+  "doc_type": "packing_slip",
+  "po_id": "PO-4419",
+  "supplier": "Fresh Farms",
+  "lines": [
+    {
+      "sku": "ROM-ICE-24",
+      "item": "romaine",
+      "quantity": 50,
+      "unit": "cases",
+      "lot_code": "R2298",
+      "unit_price_usd": null
+    }
+  ]
+}
