@@ -355,6 +355,21 @@ class Store:
         })
         if status == "committed":
             self.emit("order_committed", "database", actor, "orders", order_id, {"item": order["item"]})
+            # A clean receipt deserves a positive notice, not silence: the
+            # alerts feed is where a supervisor looks, and "nothing appeared"
+            # is indistinguishable from "nothing was received".
+            self.notice(
+                order_id,
+                reason="receipt matched the paperwork",
+                summary=(
+                    f"{order.get('item')} from {order.get('supplier')}: "
+                    f"{order.get('quantity_received')} {order.get('unit') or 'units'} "
+                    f"received against {order.get('quantity_expected')} expected, "
+                    f"lot {order.get('lot_code')}. Purchase order, bill of lading and "
+                    "packing slip all agree."
+                ),
+                actor=actor,
+            )
         if status == "pending_clarification" and data.get("clarification_question"):
             clq_id = f"CLQ-{order_id}"
             clarification_ids.append(clq_id)
@@ -474,6 +489,37 @@ class Store:
                 "severity": severity,
             })
         return alert
+
+    def notice(
+        self,
+        order_id: str,
+        *,
+        reason: str,
+        summary: str | None = None,
+        actor: str = "api",
+    ) -> None:
+        """An informational alert -- a receipt that went right.
+
+        Without one, a clean receipt leaves no trace in the feed a supervisor
+        actually watches, and "nothing appeared" reads the same as "nothing was
+        received".
+        """
+        alert_id = f"ALT-OK-{order_id}"
+        alert = {
+            "alert_id": alert_id,
+            "order_id": order_id,
+            "reason": reason,
+            "ai_summary": summary,
+            "severity": "info",
+            "acknowledged": False,
+            "created_at": _now(),
+        }
+        self.db.alerts.update_one({"alert_id": alert_id}, {"$set": alert}, upsert=True)
+        self.emit("alert_opened", "database", actor, "alerts", alert_id, {
+            "reason": reason,
+            "severity": "info",
+            "order_id": order_id,
+        })
 
     def flag(
         self,
