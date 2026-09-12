@@ -106,6 +106,10 @@ def rank(parsed: dict[str, Any], docs: list[dict[str, Any]], limit: int = 4) -> 
             "score": score,
             "why": why,
             "items": [ln.get("item") for ln in (doc.get("lines") or [])],
+            "lines": [
+                {"item": ln.get("item"), "quantity": ln.get("quantity"), "unit": ln.get("unit")}
+                for ln in (doc.get("lines") or [])
+            ],
             "lot_codes": [ln.get("lot_code") for ln in (doc.get("lines") or []) if ln.get("lot_code")],
         })
     scored.sort(key=lambda c: (-c["score"], str(c["po_id"])))

@@ -31,31 +31,6 @@ function blankScratch(): VoiceSession {
 }
 const alerts = alertsData as AlertCard[];
 
-function newBlankSession(): VoiceSession {
-  return {
-    session_id: `VS-${Date.now()}`,
-    stage: "parsing",
-    is_alert: false,
-    created_at: new Date().toISOString(),
-    summary: null,
-    messages: [
-      {
-        id: `sys-${Date.now()}`,
-        role: "system",
-        text: "Parsing…",
-        at: new Date().toISOString(),
-      },
-      {
-        id: `user-speaking-${Date.now()}`,
-        role: "user",
-        text: "…",
-        state: "speaking",
-        at: new Date().toISOString(),
-      },
-    ],
-  };
-}
-
 export function VoicePage() {
   const [searchParams] = useSearchParams();
   const { sessionId: routeSessionId } = useParams();
@@ -71,6 +46,7 @@ export function VoicePage() {
   const sessionsRef = useRef<VoiceSession[]>([]);
   // The order the worker is looking at, sent with each recording.
   const currentOrderRef = useRef<string | null>(null);
+  const currentIdRef = useRef<string | null>(null);
   const { data: liveSessions, isLoading } = useVoiceSessions(seedSessions);
 
   const sessions = useMemo(() => {
@@ -89,7 +65,18 @@ export function VoicePage() {
   const mic = useDockMic({
     contextOrderId: currentOrderRef.current,
     onTurn: (turn) => {
-      const targetId = turn.order?.order_id ? `VS-${turn.order.order_id}` : SCRATCH_ID;
+      // Keep the exchange where it started. Jumping to the order's own session
+      // the moment it resolves splits one conversation across two threads and
+      // looks like a new chat appearing.
+      const viewing = currentIdRef.current;
+      const targetId =
+        viewing && viewing !== SCRATCH_ID
+          ? viewing
+          : viewing === SCRATCH_ID
+            ? SCRATCH_ID
+            : turn.order?.order_id
+              ? `VS-${turn.order.order_id}`
+              : SCRATCH_ID;
       const now = new Date().toISOString();
       const heard: ChatMessage = {
         id: `u-${turn.event_id}`,
@@ -117,6 +104,10 @@ export function VoicePage() {
           ...prev,
           [targetId]: {
             ...base,
+            // Once a turn identifies an order, the thread adopts it rather than
+            // the conversation moving elsewhere.
+            order_id: turn.order?.order_id ?? base.order_id,
+            is_alert: turn.order?.status === "flagged" || base.is_alert,
             stage: turn.mode === "clarification_answer" ? "logging_data" : "confirming",
             messages: [...base.messages, heard, said],
           },
@@ -127,8 +118,10 @@ export function VoicePage() {
           prev.some((s) => s.session_id === SCRATCH_ID) ? prev : [blankScratch(), ...prev],
         );
       }
-      setSelectedId(targetId);
-      navigate(`/voice/${encodeURIComponent(targetId)}`);
+      if (currentIdRef.current !== targetId) {
+        setSelectedId(targetId);
+        navigate(`/voice/${encodeURIComponent(targetId)}`);
+      }
     },
   });
 
@@ -207,7 +200,8 @@ export function VoicePage() {
 
   useEffect(() => {
     currentOrderRef.current = current?.order_id ?? null;
-  }, [current]);
+    currentIdRef.current = currentId;
+  }, [current, currentId]);
 
   function playDemoStep() {
     if (!current || current.stage === "done") return;
@@ -305,14 +299,6 @@ export function VoicePage() {
     });
   }
 
-  function startNextLog() {
-    // The URL owns the selection, so this has to navigate or nothing moves.
-    const blank = newBlankSession();
-    setLocalSessions((prev) => [blank, ...prev]);
-    setSelectedId(blank.session_id);
-    navigate(`/voice/${encodeURIComponent(blank.session_id)}`);
-  }
-
   /** Open an empty conversation that is not attached to any order on file. */
   function openScratch() {
     setLocalSessions((prev) =>
@@ -375,13 +361,6 @@ export function VoicePage() {
               onClick={playDemoStep}
             >
               Play demo step
-            </button>
-            <button
-              type="button"
-              className="text-body2-default text-accent rounded-small px-4 py-2 hover:bg-brand-green-soft"
-              onClick={startNextLog}
-            >
-              Next log →
             </button>
             <button
               type="button"

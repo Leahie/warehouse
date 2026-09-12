@@ -58,6 +58,19 @@ def answer_intent(utterance: str) -> str | None:
     return None
 
 
+_NOT_A_NAME = re.compile(
+    r"\b(i|we|you|they|he|she|it|got|have|has|had|think|thinks|thought|is|are|was|were|"
+    r"am|be|been|receiving|received|unloading|need|want|say|said|yeah|yes|no|ok|okay|"
+    r"this|that|these|those|some|the|a|an|my|here)\b",
+    re.I,
+)
+
+
+def _looks_like_name(candidate: str) -> bool:
+    words = candidate.split()
+    return 1 <= len(words) <= 4 and not _NOT_A_NAME.search(candidate)
+
+
 def crude_parse(utterance: str) -> dict:
     """Pull what we can out of a spoken line. Every field is best-effort.
 
@@ -80,7 +93,12 @@ def crude_parse(utterance: str) -> dict:
     # "42 cases of cauliflower, lot C5217-15, Pacific Pac 5."
     supplier = re.search(r"\bfrom\s+([A-Za-z0-9][A-Za-z0-9 .'&-]+)", text, re.I)
     if not supplier:
-        supplier = re.search(r",\s*([A-Z][A-Za-z0-9 .'&-]{3,})\.?\s*$", text.strip())
+        # A trailing proper noun is often the supplier ("..., Pacific Pack 5."),
+        # but "Yo, I got some broccoli." fits that shape too. Require something
+        # name-shaped: at most four words, and no pronouns or verbs in it.
+        tail = re.search(r",\s*([A-Z][A-Za-z0-9 .'&-]{3,})\.?\s*$", text.strip())
+        if tail and _looks_like_name(tail.group(1)):
+            supplier = tail
     # "PO-5014", "PO5014", "P.O. 5014", "purchase order 5014". The agent reads
     # PO numbers out when it offers a shortlist, so workers answer with one.
     po = re.search(r"\b(?:p\.?\s?o\.?|purchase\s+order)[\s#:-]*(\d{3,6})\b", text, re.I)
@@ -147,29 +165,57 @@ def _merge_pending(store: Store, worker_id: str | None, parsed: dict) -> dict:
         return parsed
     merged = dict(parsed)
     for prior in store.pending_context(worker_id):
-        for field in CARRY_FIELDS:
+        # Naming a different item means the worker moved to another pallet, so
+        # its quantity, lot and sku belong to the previous one, not this one.
+        same_subject = (
+            not merged.get("item")
+            or not prior.get("item")
+            or merged["item"] == prior["item"]
+        )
+        fields = CARRY_FIELDS if same_subject else ("supplier",)
+        for field in fields:
             if merged.get(field) in (None, "") and prior.get(field) not in (None, ""):
                 merged[field] = prior[field]
     return merged
 
 
 def _offer_text(parsed: dict, candidates: list[dict]) -> str:
-    """Read the shortlist back to the worker instead of guessing or giving up."""
+    """Read the shortlist back with something the worker can actually pick on."""
     heard = [
         f"{parsed['quantity']} {parsed.get('unit') or 'units'}" if parsed.get("quantity") else None,
         parsed.get("item"),
         f"lot {parsed['lot_code']}" if parsed.get("lot_code") else None,
+        f"from {parsed['supplier']}" if parsed.get("supplier") else None,
     ]
     heard_txt = ", ".join(h for h in heard if h) or "that"
-    options = "; ".join(
-        f"{c['po_id']} from {c['supplier']}"
-        + (f", lot {c['lot_codes'][0]}" if c.get("lot_codes") else "")
-        for c in candidates[:3]
+
+    # If every option shares the supplier, repeating it tells the worker nothing;
+    # the quantity or lot is what separates them.
+    suppliers = {c.get("supplier") for c in candidates[:3]}
+    same_supplier = len(suppliers) == 1
+
+    def describe(c: dict) -> str:
+        bits = [c["po_id"]]
+        if not same_supplier and c.get("supplier"):
+            bits.append(f"from {c['supplier']}")
+        if c.get("lot_codes"):
+            bits.append(f"lot {c['lot_codes'][0]}")
+        else:
+            line = next(
+                (ln for ln in c.get("lines") or [] if ln.get("item") == parsed.get("item")),
+                None,
+            ) or next(iter(c.get("lines") or []), None)
+            if line and line.get("quantity") is not None:
+                bits.append(f"{line['quantity']} {line.get('unit') or 'units'}")
+        return " ".join(bits)
+
+    options = "; ".join(describe(c) for c in candidates[:3])
+    lead = (
+        f"All {len(candidates[:3])} are from {candidates[0].get('supplier')}"
+        if same_supplier
+        else f"I heard {heard_txt}, but I could not tell which delivery you mean"
     )
-    return (
-        f"I heard {heard_txt}, but I could not tell which delivery you mean. "
-        f"I have {options}. Which one is it? The lot code is enough."
-    )
+    return f"{lead}. I have {options}. Which one? A lot code or PO number settles it."
 
 
 def _reply_text(store: Store, mode: str, order: dict | None, parsed: dict) -> str:
