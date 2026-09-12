@@ -5,6 +5,7 @@ type Props = {
   start: string;
   end: string;
   mode: LogsMode | null;
+  enabledDays?: ReadonlySet<string>;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
   onModeChange: (mode: LogsMode) => void;
@@ -14,6 +15,7 @@ export function TimeRangeControls({
   start,
   end,
   mode,
+  enabledDays,
   onStartChange,
   onEndChange,
   onModeChange,
@@ -30,6 +32,7 @@ export function TimeRangeControls({
             allowAll={false}
             ariaLabel="Start date"
             align="left"
+            enabledDays={enabledDays}
           />
           <span className="text-tertiary">–</span>
           <DatePicker
@@ -39,6 +42,7 @@ export function TimeRangeControls({
             allowAll={false}
             ariaLabel="End date"
             align="left"
+            enabledDays={enabledDays}
           />
         </div>
       </div>

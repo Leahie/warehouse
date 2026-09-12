@@ -17,10 +17,10 @@ const ORDER_STATUSES: OrderStatus[] = [
   "pending_match",
 ];
 
-function toStatus(raw: string | undefined): OrderStatus {
+function toStatus(raw: string | null | undefined, fallback: OrderStatus = "pending_match"): OrderStatus {
   return ORDER_STATUSES.includes(raw as OrderStatus)
     ? (raw as OrderStatus)
-    : "pending_match";
+    : fallback;
 }
 
 // The fixtures group by a produce category. Nothing in Mongo stores this, so
@@ -45,7 +45,7 @@ export function toOrderRow(o: ApiOrder): OrderRow {
   return {
     order_id: o.order_id,
     date: dayOf(o.created_at),
-    time_process_finished: o.committed_at ?? o.created_at ?? "",
+    time_process_finished: o.time_process_finished ?? o.committed_at ?? o.created_at ?? "",
     item: o.item,
     quantity_received: o.quantity_received ?? 0,
     quantity_expected: o.quantity_expected ?? 0,
@@ -63,20 +63,27 @@ export function toOrderRow(o: ApiOrder): OrderRow {
  * soon as the paperwork lands and stays "awaiting" until a worker checks it in,
  * which is what makes fulfilment visible rather than only completed receipts.
  */
-export function expectedToOrderRow(r: ApiExpectedReceipt): OrderRow {
+export function expectedToOrderRow(r: ApiExpectedReceipt, order?: ApiOrder | null): OrderRow {
+  const rawStatus = r.status ?? r.receipt_status ?? order?.status;
   return {
-    order_id: r.order_id ?? `${r.po_id}-${(r.sku ?? r.item ?? "").toString()}`,
-    date: "",
-    time_process_finished: "",
+    order_id: r.order_id ?? order?.order_id ?? `${r.po_id}-${(r.sku ?? r.item ?? "").toString()}`,
+    date: dayOf(order?.created_at ?? r.created_at),
+    time_process_finished:
+      order?.time_process_finished ??
+      order?.committed_at ??
+      r.time_process_finished ??
+      "",
     item: r.item,
-    quantity_received: r.quantity_received ?? 0,
-    quantity_expected: r.quantity_expected ?? r.quantity_po ?? 0,
-    quality: null,
-    supplier: r.supplier ?? "unknown",
-    lot_code: "",
+    quantity_received: r.quantity_received ?? order?.quantity_received ?? 0,
+    quantity_expected: r.quantity_expected ?? r.quantity_po ?? order?.quantity_expected ?? 0,
+    quality: order?.quality ?? r.quality ?? null,
+    supplier: r.supplier ?? order?.supplier ?? "unknown",
+    lot_code: order?.lot_code ?? r.lot_code ?? "",
     industry: industryFor(r.item),
-    status: toStatus(r.receipt_status),
-    flagged_by: r.flag_reason ? "matcher" : null,
+    // Papers from the running API send `status`, not `receipt_status`.
+    // An unchecked-in line is awaiting delivery, not pending match.
+    status: toStatus(rawStatus, r.checked_in === false || !rawStatus ? "awaiting" : "pending_match"),
+    flagged_by: order?.flagged_by ?? (r.flag_reason ? "matcher" : null),
   };
 }
 
@@ -271,9 +278,22 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
           o.order_id === resolvedOrderId &&
           (o.status === "committed" || o.status === "flagged"),
       );
-      const stage: VoiceStage = settledOrder
-        ? "done"
-        : STAGE_BY_KIND[last.kind] ?? "parsing";
+      // Seed events never carry a browser session_id. Those historical
+      // threads already produced an order and belong under Logged
+      // Conversations — otherwise every pending_clarification from the
+      // week of seed data looks like a live dock session.
+      const hasBrowserSession = ordered.some((e) => {
+        const p = (e.payload ?? {}) as Record<string, unknown>;
+        return typeof p.session_id === "string" && p.session_id.length > 0;
+      });
+      const stage: VoiceStage =
+        settledOrder || (resolvedOrderId && !hasBrowserSession)
+          ? "done"
+          : STAGE_BY_KIND[last.kind] ?? "parsing";
+
+      // Unmatched seed utterances have no order and no browser session_id.
+      // They are not live dock work; leaving them in would fill In Progress.
+      if (!resolvedOrderId && !hasBrowserSession) return null;
 
       return {
         // The browser already sends ids in VS- form; prefixing again would make
@@ -289,6 +309,7 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
         created_at: ordered[0].t,
       };
     })
+    .filter((session): session is VoiceSession => session !== null)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 

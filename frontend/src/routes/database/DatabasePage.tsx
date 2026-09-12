@@ -5,6 +5,8 @@ import {
   type ColumnFilterState,
   type ColumnKey,
 } from "@/components/database/FilterPopover";
+import { InfiniteSentinel } from "@/components/InfiniteSentinel";
+import { LoadingIcon } from "@/components/LoadingIcon";
 import { Selector } from "@/components/Selector";
 import { StatusChip } from "@/components/database/StatusChip";
 import { industryFor } from "@/api/adapters";
@@ -34,10 +36,21 @@ function SearchIcon() {
 }
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, {
+  if (!iso) return "—";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatDate(value: string) {
+  if (!value || value === "unknown") return "—";
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toISOString().slice(0, 10);
 }
 
 function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
@@ -81,12 +94,13 @@ function applyFilters(rows: OrderRow[], filters: ColumnFilterState) {
 
 export function DatabasePage() {
   // Show what the warehouse is expecting, not only what has been received.
-  const { data: orders } = useExpectedReceipts(fallbackOrders);
+  const { data: orders, total, hasMore, loadMore, isLoading } = useExpectedReceipts(fallbackOrders);
   const facets = useFacetOptions();
   const { data: progress } = useProgress();
   const [filters, setFilters] = useState<ColumnFilterState>({});
   const [draft, setDraft] = useState<ColumnFilterState>({});
   const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
   const allIndustries = useMemo(() => {
     const set = new Set<string>(facets.industries);
@@ -167,7 +181,7 @@ export function DatabasePage() {
           </p>
         )}
           <p className="text-body3-default text-tertiary mt-1 mb-0">
-            Real-time receipt ledger. Showing {rows.length} of {orders.length} orders.
+            Real-time receipt ledger. Showing {rows.length} of {total || orders.length} orders.
           </p>
         </div>
 
@@ -217,7 +231,7 @@ export function DatabasePage() {
         </div>
       ) : null}
 
-      <div className="card-surface min-h-0 flex-1 overflow-auto">
+      <div ref={setScroller} className="card-surface min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-left">
           <thead className="bg-core-surface sticky top-0 z-10 border-b border-core shadow-sm">
             <tr>
@@ -284,14 +298,21 @@ export function DatabasePage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {isLoading && orders.length === 0 ? (
+              <tr>
+                <td colSpan={COLUMNS.length} className="px-4 py-16">
+                  <div className="flex justify-center">
+                    <LoadingIcon label="Loading orders" />
+                  </div>
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={COLUMNS.length}
                   className="text-body1-default text-secondary px-4 py-12 text-center"
                 >
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-2xl">📋</span>
                     <span>No orders match these filters.</span>
                     <button
                       type="button"
@@ -315,7 +336,7 @@ export function DatabasePage() {
                   }
                 >
                   <td className="text-body2-default text-primary px-4 py-3 font-mono text-xs">
-                    {row.date}
+                    {formatDate(row.date)}
                   </td>
                   <td className="text-body2-default text-primary px-4 py-3">
                     {formatTime(row.time_process_finished)}
@@ -347,6 +368,12 @@ export function DatabasePage() {
             )}
           </tbody>
         </table>
+        <InfiniteSentinel
+          onVisible={loadMore}
+          disabled={!hasMore || isLoading}
+          root={scroller}
+          label="Loading more orders"
+        />
       </div>
     </section>
   );

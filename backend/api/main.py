@@ -127,8 +127,14 @@ def order_facets():
 
 
 @app.get("/api/papers")
-def papers():
-    return {"papers": _jsonify(store.list_expected_receipts())}
+def papers(limit: int = 0, offset: int = 0):
+    offset, capped = _page(limit, offset)
+    rows = store.list_expected_receipts()
+    total = len(rows)
+    page = rows[offset:] if capped is None else rows[offset : offset + capped]
+    body = _page_body(page, total, offset, capped)
+    body["papers"] = _jsonify(page)
+    return body
 
 
 @app.get("/api/orders/{order_id}")

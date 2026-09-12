@@ -57,6 +57,7 @@ export type ApiOrder = {
   flag_reason?: string | null;
   created_at?: string | null;
   committed_at?: string | null;
+  time_process_finished?: string | null;
   clarification_ids?: string[];
   match?: {
     mismatches?: { field: string; po?: number; bol?: number; slip?: number; voice?: number | null }[];
@@ -75,12 +76,16 @@ export type ApiExpectedReceipt = {
   quantity_slip?: number | null;
   order_id?: string | null;
   status?: string | null;
-  receipt_status: string;
+  receipt_status?: string | null;
   quantity_received?: number | null;
   quantity_expected?: number | null;
   quantity_outstanding?: number | null;
-  checked_in: boolean;
+  checked_in?: boolean;
   flag_reason?: string | null;
+  created_at?: string | null;
+  time_process_finished?: string | null;
+  quality?: string | null;
+  lot_code?: string | null;
 };
 
 export type ApiProgress = {
@@ -202,7 +207,16 @@ export const fetchSuppliersPage = (
 };
 
 export const fetchExpected = (s?: AbortSignal) =>
-  getJson<{ papers: ApiExpectedReceipt[] }>("/papers", s).then((d) => d.papers ?? []);
+  getJson<{ papers: ApiExpectedReceipt[] }>("/papers?limit=0", s).then((d) => d.papers ?? []);
+
+export const fetchExpectedPage = (offset: number, limit = PAGE_SIZE, s?: AbortSignal) =>
+  getJson<{
+    papers: ApiExpectedReceipt[];
+    total: number;
+    offset: number;
+    limit: number;
+    has_more: boolean;
+  }>(`/papers?offset=${offset}&limit=${limit}`, s).then((d) => asPage(d.papers ?? [], d));
 export const fetchProgress = (s?: AbortSignal) => getJson<ApiProgress>("/progress", s);
 export const fetchAlerts = (s?: AbortSignal) =>
   getJson<{ alerts: ApiAlert[] }>("/alerts?limit=0", s).then((d) => d.alerts ?? []);

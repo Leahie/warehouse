@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchAlertsPage,
   fetchEvents,
-  fetchExpected,
+  fetchExpectedPage,
   fetchOrderFacets,
   fetchOrders,
   fetchOrdersPage,
@@ -14,7 +14,6 @@ import {
   PAGE_SIZE,
   type ApiAlert,
   type ApiEvent,
-  type ApiExpectedReceipt,
   type ApiOrder,
   type ApiProgress,
   type ApiSupplier,
@@ -214,19 +213,26 @@ export function useOrderFacets() {
 /**
  * Every line the warehouse is expecting, checked in or not. The orders endpoint
  * only knows about receipts a worker has already spoken for, which makes an
- * empty dock look like an empty database.
+ * empty dock look like an empty database. Pages like alerts: first ~10, then more.
  */
-export function useExpectedReceipts(fallback: OrderRow[]): Live<OrderRow[]> {
-  const { value, error, settled } = usePoll<ApiExpectedReceipt[]>((s) => fetchExpected(s));
-  return useMemo(
-    () => ({
-      data: value ? value.map(expectedToOrderRow) : settled ? fallback : [],
-      isLive: value !== null,
-      isLoading: !settled,
-      error,
-    }),
-    [value, error, settled, fallback],
-  );
+export function useExpectedReceipts(fallback: OrderRow[]): InfiniteLive<OrderRow> {
+  return useInfinitePage({
+    fallback,
+    idOf: (row) => row.order_id,
+    load: async (offset, limit, signal) => {
+      const [page, orders] = await Promise.all([
+        fetchExpectedPage(offset, limit, signal),
+        fetchOrders(signal),
+      ]);
+      const byId = new Map(orders.map((order) => [order.order_id, order]));
+      return {
+        ...page,
+        items: page.items.map((paper) =>
+          expectedToOrderRow(paper, paper.order_id ? byId.get(paper.order_id) : undefined),
+        ),
+      };
+    },
+  });
 }
 
 export function useProgress(): Live<ApiProgress | null> {
@@ -300,13 +306,23 @@ export function useAllAlerts(fallback: AlertCard[]): Live<AlertCard[]> {
   );
 }
 
+function pickVoiceSessions(all: VoiceSession[], max: number): VoiceSession[] {
+  const live = all.filter((session) => session.stage !== "done");
+  const done = all.filter((session) => session.stage === "done");
+  const liveCap = Math.min(live.length, Math.max(8, Math.floor(max / 4)));
+  const keptLive = live.slice(0, liveCap);
+  return [...keptLive, ...done.slice(0, max - keptLive.length)];
+}
+
 export function useVoiceSessions(fallback: VoiceSession[]): Live<VoiceSession[]> {
   const { value, error, settled } = usePoll<{ events: ApiEvent[]; orders: ApiOrder[] }>(
     async (s) => ({ events: await fetchEvents("voice", s), orders: await fetchOrders(s) }),
   );
   return useMemo(() => {
     const all = value ? toVoiceSessions(value.events, value.orders) : null;
-    const sessions = all ? all.slice(0, MAX_SESSIONS) : null;
+    // Newest-first would keep every scratch / pending thread and hide the
+    // completed seed logs. Keep a few live ones, then fill with archived.
+    const sessions = all ? pickVoiceSessions(all, MAX_SESSIONS) : null;
     return {
       data: sessions && sessions.length ? sessions : settled ? fallback : [],
       isLive: value !== null,
@@ -339,7 +355,7 @@ function fallbackForNames(fallback: LogsAggregateFile, names: string[]): LogsAgg
 
 export function useLogsAggregate(
   fallback: LogsAggregateFile,
-  range: { start: string; end: string },
+  range: { start?: string; end?: string },
   names: string[],
 ): Live<LogsAggregateFile> {
   const cleaned = names.map((n) => n.trim()).filter(Boolean);
@@ -350,7 +366,11 @@ export function useLogsAggregate(
       const page = await fetchSuppliersPage(
         0,
         Math.max(cleaned.length, 1),
-        { start: range.start, end: range.end, names: cleaned },
+        {
+          ...(range.start ? { start: range.start } : {}),
+          ...(range.end ? { end: range.end } : {}),
+          names: cleaned,
+        },
         signal,
       );
       return page.items;

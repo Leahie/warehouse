@@ -672,6 +672,18 @@ class Store:
                     "quantity_received": (order or {}).get("quantity_received"),
                     "quantity_expected": (order or {}).get("quantity_expected") or qty_po,
                     "flag_reason": (order or {}).get("flag_reason"),
+                    "created_at": (order or {}).get("created_at") or po.get("received_at"),
+                    "time_process_finished": (
+                        (order or {}).get("time_process_finished")
+                        or (order or {}).get("committed_at")
+                    ),
+                    "quality": (order or {}).get("quality"),
+                    "lot_code": (
+                        (order or {}).get("lot_code")
+                        or (slip_line or {}).get("lot_code")
+                        or (bol_line or {}).get("lot_code")
+                        or ""
+                    ),
                     # A PO line exists the moment the paperwork lands; it stays
                     # awaiting until a worker checks it in at the dock.
                     "receipt_status": (order or {}).get("status") or "awaiting",

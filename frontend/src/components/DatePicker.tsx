@@ -10,6 +10,8 @@ type Props = {
   allLabel?: string;
   ariaLabel?: string;
   align?: "left" | "right";
+  /** When set, days missing from this set are faded and not selectable. */
+  enabledDays?: ReadonlySet<string>;
 };
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -59,6 +61,7 @@ export function DatePicker({
   allLabel = "All days",
   ariaLabel = "Choose a day",
   align = "right",
+  enabledDays,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [menuBox, setMenuBox] = useState<{ top: number; left: number } | null>(null);
@@ -138,6 +141,14 @@ export function DatePicker({
     return true;
   }
 
+  function hasData(iso: string) {
+    return !enabledDays || enabledDays.has(iso);
+  }
+
+  function isSelectable(iso: string) {
+    return inRange(iso) && (iso === value || hasData(iso));
+  }
+
   const triggerLabel = value ? formatLabel(value) : allLabel;
 
   return (
@@ -210,13 +221,18 @@ export function DatePicker({
           <div className="grid grid-cols-7 gap-0.5 text-center">
             {cells.map((iso, index) => {
               if (!iso) return <span key={`empty-${index}`} />;
-              const enabled = inRange(iso);
               const selected = iso === value;
+              const enabled = isSelectable(iso);
+              const empty = inRange(iso) && !hasData(iso) && !selected;
               return (
                 <button
                   key={iso}
                   type="button"
                   disabled={!enabled}
+                  title={empty ? "No data on this day" : undefined}
+                  aria-label={
+                    empty ? `${parseDay(iso).getDate()}, no data` : undefined
+                  }
                   className={[
                     "text-body2-default h-8 rounded-small",
                     selected

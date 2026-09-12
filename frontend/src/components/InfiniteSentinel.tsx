@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { LoadingIcon } from "@/components/LoadingIcon";
 
 type Props = {
   onVisible: () => void;
@@ -8,8 +9,8 @@ type Props = {
   root?: Element | null;
 };
 
-/** Invisible marker: when it enters the viewport, ask for the next page. */
-export function InfiniteSentinel({ onVisible, disabled, label = "Loading more…", root }: Props) {
+/** Marker at the end of a list: when it enters view, ask for the next page. */
+export function InfiniteSentinel({ onVisible, disabled, label = "Loading more", root }: Props) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const onVisibleRef = useRef(onVisible);
   onVisibleRef.current = onVisible;
@@ -31,7 +32,7 @@ export function InfiniteSentinel({ onVisible, disabled, label = "Loading more…
   if (disabled) return null;
   return (
     <div ref={nodeRef} className="flex justify-center py-3">
-      <span className="text-body3-default text-tertiary">{label}</span>
+      <LoadingIcon label={label} />
     </div>
   );
 }

@@ -85,15 +85,22 @@ export function MainAlertsPage() {
     [alerts],
   );
 
+  const weeklyAll = useMemo(
+    () => allAlerts.filter((alert) => isWithinLastWeek(alert.created_at)),
+    [allAlerts],
+  );
+
   const dayScoped = useMemo(() => {
     if (!selectedDay) return weekly;
     return weekly.filter((alert) => localDayKey(alert.created_at) === selectedDay);
   }, [weekly, selectedDay]);
 
-  const stats = useMemo(
-    () => summarize(allAlerts.filter((alert) => isWithinLastWeek(alert.created_at))),
-    [allAlerts],
-  );
+  const stats = useMemo(() => {
+    const scoped = selectedDay
+      ? weeklyAll.filter((alert) => localDayKey(alert.created_at) === selectedDay)
+      : weeklyAll;
+    return summarize(scoped);
+  }, [weeklyAll, selectedDay]);
 
   const visible = useMemo(() => {
     if (severity === "all") return dayScoped;

@@ -73,6 +73,30 @@
   select {
     font: inherit;
   }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-core-border-ii) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-core-border-ii);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-tertiary);
+  }
 }
 
 /* Semantic typography utilities (design system) */
@@ -257,6 +281,16 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-icon {
+  animation: spin 0.7s linear infinite;
 }
 
 /* App shell helpers */

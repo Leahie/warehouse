@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { LoadingIcon } from "@/components/LoadingIcon";
 import type { StatusBreakdown } from "@/types/logs";
 import { STATUS_COLORS } from "@/constants/statuses";
 
@@ -31,7 +32,6 @@ type Props = {
 
 const BAR_W = 80;
 const BAR_GAP = 10;
-const DAY_GAP = 64;
 const PLOT_H_CLASS = "h-80";
 const PLOT_H = 320;
 const LINE_COL_W = 96;
@@ -50,6 +50,23 @@ function yCeiling(values: number[]) {
 function clusterWidth(barCount: number) {
   if (barCount <= 0) return BAR_W;
   return barCount * BAR_W + Math.max(0, barCount - 1) * BAR_GAP;
+}
+
+function useElementWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const sync = () => setWidth(el.clientWidth);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, width };
 }
 
 export function LogsChart({ groups, points, mode, singleManufacturerName, isLoading }: Props) {
@@ -76,15 +93,16 @@ export function LogsChart({ groups, points, mode, singleManufacturerName, isLoad
 
       {empty ? (
         <div className="flex flex-1 flex-col items-center justify-center rounded-default border-2 border-dashed border-core p-8 text-center">
-          <span className="text-3xl mb-2">📊</span>
-          <p className="text-body1-default text-primary font-medium m-0">
-            {isLoading ? "Loading chart data" : "No chart data displayed"}
-          </p>
-          <p className="text-body2-default text-secondary mt-1 mb-0">
-            {isLoading
-              ? "Fetching orders for the selected companies and dates."
-              : "Select a time range and choose Multiple or Single above to view analytics."}
-          </p>
+          {isLoading ? (
+            <LoadingIcon label="Loading chart data" />
+          ) : (
+            <>
+              <p className="text-body1-default text-primary font-medium m-0">No chart data displayed</p>
+              <p className="text-body2-default text-secondary mt-1 mb-0">
+                Select a time range and choose Multiple or Single above to view analytics.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div className="flex min-w-0 flex-col">
@@ -177,17 +195,17 @@ function GroupedBars({
   ticks: number[];
 }) {
   return (
-    <div className="relative inline-block min-w-full pb-4">
+    <div className="relative w-full min-w-full pb-4">
       <div className={AXIS_HEAD_CLASS} />
       <div className="relative">
         <Gridlines ticks={ticks} />
         <div className={`pointer-events-none absolute top-0 left-0 z-10 w-0 border-l-2 border-core-border-ii ${PLOT_H_CLASS}`} />
-        <div className={`relative z-10 flex items-end px-6 ${PLOT_H_CLASS}`} style={{ gap: DAY_GAP }}>
+        <div className={`relative z-10 flex w-full items-end ${PLOT_H_CLASS}`}>
           {groups.map((group) => (
             <div
               key={group.key}
-              className={`flex shrink-0 items-end ${PLOT_H_CLASS}`}
-              style={{ width: clusterWidth(group.bars.length), gap: BAR_GAP }}
+              className={`flex min-w-0 flex-1 items-end justify-center ${PLOT_H_CLASS}`}
+              style={{ minWidth: clusterWidth(group.bars.length), gap: BAR_GAP }}
             >
               {group.bars.map((bar) => (
                 <StackBar key={bar.key} bar={bar} ceiling={ceiling} />
@@ -196,14 +214,14 @@ function GroupedBars({
           ))}
         </div>
       </div>
-      <div className="flex items-start px-6 pt-4" style={{ gap: DAY_GAP }}>
+      <div className="flex w-full items-start pt-4">
         {groups.map((group) => (
           <div
             key={`${group.key}-label`}
-            className="flex shrink-0 flex-col items-stretch"
-            style={{ width: clusterWidth(group.bars.length) }}
+            className="flex min-w-0 flex-1 flex-col items-stretch"
+            style={{ minWidth: clusterWidth(group.bars.length) }}
           >
-            <div className="flex" style={{ gap: BAR_GAP }}>
+            <div className="flex justify-center" style={{ gap: BAR_GAP }}>
               {group.bars.map((bar) => (
                 <span
                   key={`${bar.key}-name`}
@@ -281,8 +299,9 @@ function LinePlot({
   ticks: number[];
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
-  const width = Math.max(points.length * LINE_COL_W, 360);
-  const padX = 60;
+  const { ref: plotRef, width: measuredWidth } = useElementWidth();
+  const width = Math.max(measuredWidth, 1);
+  const padX = Math.max(48, LINE_COL_W / 2);
   const padY = 24;
   const innerW = width - padX * 2;
   const innerH = PLOT_H - padY * 2;
@@ -324,17 +343,21 @@ function LinePlot({
   }, [hovered, points, width]);
 
   return (
-    <div className="relative inline-block min-w-full pb-4">
+    <div
+      ref={plotRef}
+      className="relative w-full pb-4"
+      style={{ minWidth: points.length * LINE_COL_W }}
+    >
       <div className={AXIS_HEAD_CLASS} />
       <div className="relative">
         <Gridlines ticks={ticks} />
         <div className={`pointer-events-none absolute top-0 left-0 z-10 w-0 border-l-2 border-core-border-ii ${PLOT_H_CLASS}`} />
         <svg
           ref={svgRef}
-          className="relative z-10 block"
-          width={width}
+          className="relative z-10 block w-full"
           height={PLOT_H}
           viewBox={`0 0 ${width} ${PLOT_H}`}
+          preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label="Company volume over time"
         >
@@ -387,13 +410,13 @@ function LinePlot({
           <TooltipBody title={points[hovered].label} quantities={points[hovered].quantities} />
         </PortaledTooltip>
       ) : null}
-      <div className="relative pt-4" style={{ width, minHeight: 52 }}>
+      <div className="relative w-full pt-4" style={{ minHeight: 52 }}>
         {points.map((point, i) => (
           <span
             key={`${point.key}-label`}
             className="text-body2-default text-primary absolute top-4 text-center font-semibold leading-snug"
             style={{
-              left: xAt(i),
+              left: `${(xAt(i) / width) * 100}%`,
               width: LINE_COL_W,
               transform: "translateX(-50%)",
             }}

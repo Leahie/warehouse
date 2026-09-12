@@ -8,10 +8,6 @@ import { useFacetOptions, useLogsAggregate } from "@/api/useLiveData";
 
 const fallbackLogs = logsData as LogsAggregateFile;
 
-function emptyBreakdown(): StatusBreakdown {
-  return { pending_clarification: 0, committed: 0, flagged: 0 };
-}
-
 function totalOf(q: StatusBreakdown) {
   return q.pending_clarification + q.committed + q.flagged;
 }
@@ -62,7 +58,23 @@ export function LogsPage() {
       .filter((name): name is string => Boolean(name));
   }, [mode, names, supplierOptions]);
 
-  const { data, isLoading } = useLogsAggregate(fallbackLogs, { start, end }, resolvedNames);
+  const { data, isLoading } = useLogsAggregate(fallbackLogs, {}, resolvedNames);
+
+  const daysWithData = useMemo(() => {
+    const days = new Set<string>();
+    const sources = [data.manufacturers, fallbackLogs.manufacturers];
+    for (const raw of resolvedNames) {
+      const needle = raw.trim().toLowerCase();
+      for (const manufacturers of sources) {
+        const key = Object.keys(manufacturers).find((name) => name.toLowerCase() === needle);
+        if (!key) continue;
+        for (const [day, quantities] of Object.entries(manufacturers[key] ?? {})) {
+          if (quantities && totalOf(quantities) > 0) days.add(day);
+        }
+      }
+    }
+    return days;
+  }, [data, resolvedNames]);
 
   useEffect(() => {
     if (autoSelected.current || !supplierOptions.length) return;
@@ -118,15 +130,23 @@ export function LogsPage() {
         .map((raw) => resolveName(raw, known) ?? resolveName(raw, supplierOptions))
         .filter((name): name is string => Boolean(name));
       return {
-        groups: days.map((day) => ({
-          key: day,
-          label: formatChartDate(day),
-          bars: companies.map((name) => ({
-            key: `${name}-${day}`,
-            label: name,
-            quantities: data.manufacturers[name]?.[day] ?? emptyBreakdown(),
-          })),
-        })),
+        groups: days
+          .map((day) => ({
+            key: day,
+            label: formatChartDate(day),
+            bars: companies.flatMap((name) => {
+              const quantities = data.manufacturers[name]?.[day];
+              if (!quantities || totalOf(quantities) <= 0) return [];
+              return [
+                {
+                  key: `${name}-${day}`,
+                  label: name,
+                  quantities,
+                },
+              ];
+            }),
+          }))
+          .filter((group) => group.bars.length > 0),
         points: [] as ChartPoint[],
         error: companies.length ? null : "Select companies to compare.",
         manufacturerName: companies[0] ?? "",
@@ -198,6 +218,7 @@ export function LogsPage() {
         start={start}
         end={end}
         mode={mode}
+        enabledDays={isLoading ? undefined : daysWithData}
         onStartChange={setStart}
         onEndChange={setEnd}
         onModeChange={(next) => {
