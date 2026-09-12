@@ -398,6 +398,36 @@ class Store:
     def get_investigation(self, investigation_id: str) -> dict[str, Any] | None:
         return self.db.investigations.find_one({"investigation_id": investigation_id}, {"_id": 0})
 
+    def latest_open_clarification(self, worker_id: str | None = None) -> dict[str, Any] | None:
+        """The question a worker is most plausibly answering right now.
+
+        Prefer the newest open clarification on the order this worker last
+        spoke about; otherwise the newest open one overall. With many receipts
+        in flight there is no single open question, so recency plus the
+        worker's own last utterance is what disambiguates.
+        """
+        if worker_id:
+            recent = self.db.voice_events.find(
+                {"worker_id": worker_id}, {"_id": 0}
+            ).sort("_id", -1).limit(12)
+            lots = [
+                (e.get("parsed") or {}).get("lot_code")
+                for e in recent
+                if (e.get("parsed") or {}).get("lot_code")
+            ]
+            for lot in lots:
+                order = self.db.orders.find_one({"lot_code": lot}, {"_id": 0})
+                if not order:
+                    continue
+                clq = self.db.clarifications.find_one(
+                    {"order_id": order["order_id"], "status": "open"}, {"_id": 0}
+                )
+                if clq:
+                    return clq
+        return self.db.clarifications.find_one(
+            {"status": "open"}, {"_id": 0}, sort=[("asked_at", -1)]
+        )
+
     def list_open_clarifications(self) -> list[dict[str, Any]]:
         rows = list(self.db.clarifications.find({"status": "open"}, {"_id": 0}))
         for row in rows:

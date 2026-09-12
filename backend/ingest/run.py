@@ -122,9 +122,9 @@ def ingest_voice_doc(store: Store, doc: dict) -> dict:
     if not reply_to:
         spoken_intent = answer_intent(doc.get("utterance") or "")
         if spoken_intent:
-            open_clqs = store.list_open_clarifications()
-            if len(open_clqs) == 1:
-                reply_to = open_clqs[0]["clarification_id"]
+            clq = store.latest_open_clarification(doc.get("worker_id"))
+            if clq:
+                reply_to = clq["clarification_id"]
                 parsed["intent"] = spoken_intent
                 parsed["in_reply_to"] = reply_to
                 doc["parsed"] = parsed
