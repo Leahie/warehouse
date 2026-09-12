@@ -158,12 +158,17 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
   const orderByLot = new Map<string, ApiOrder>();
   for (const o of orders) if (o.lot_code) orderByLot.set(o.lot_code, o);
 
+  // Keys are stored bare and prefixed once at the end. Otherwise a thread keyed
+  // by the browser ("VS-RCV-5291-LET") and the same thread keyed by its order
+  // ("RCV-5291-LET") become two groups that render under one id.
+  const bareKey = (value: string) => (value.startsWith("VS-") ? value.slice(3) : value);
+
   const keyOf = (e: ApiEvent): string => {
     const p = (e.payload ?? {}) as Record<string, unknown>;
     // The browser tells us which conversation a turn belonged to. Trust that
     // over anything inferred: it is the only thing that knows two unresolved
     // utterances were part of the same exchange.
-    if (typeof p.session_id === "string" && p.session_id) return p.session_id;
+    if (typeof p.session_id === "string" && p.session_id) return bareKey(p.session_id);
     if (typeof p.order_id === "string" && p.order_id) return p.order_id;
     if (typeof p.lot_code === "string" && p.lot_code) {
       return orderByLot.get(p.lot_code)?.order_id ?? `lot:${p.lot_code}`;
@@ -205,16 +210,30 @@ export function toVoiceSessions(events: ApiEvent[], orders: ApiOrder[] = []): Vo
         text: textOf(e),
         at: e.t,
       }));
-      const isOrder = orders.some((o) => o.order_id === key);
+      // A session key may be a bare order id, a VS- prefixed one, or a browser
+      // scratch id. Resolve it back to a real order however it arrived, and fall
+      // back to an order id carried on the events themselves.
+      const bare = bareKey(key);
+      const fromEvents = ordered
+        .map((e) => (e.payload ?? {}) as Record<string, unknown>)
+        .map((p) => (typeof p.order_id === "string" ? p.order_id : null))
+        .find(Boolean);
+      const resolvedOrderId =
+        orders.find((o) => o.order_id === bare)?.order_id ??
+        orders.find((o) => o.order_id === fromEvents)?.order_id ??
+        null;
+      const isOrder = resolvedOrderId !== null;
       return {
-        session_id: `VS-${key}`,
+        // The browser already sends ids in VS- form; prefixing again would make
+        // a second, unrelated-looking conversation out of the same thread.
+        session_id: key.startsWith("VS-") ? key : `VS-${key}`,
         stage: STAGE_BY_KIND[last.kind] ?? "parsing",
         messages,
         summary: messages.length ? messages[messages.length - 1].text : null,
         is_alert: isOrder
-          ? orders.find((o) => o.order_id === key)?.status === "flagged"
+          ? orders.find((o) => o.order_id === resolvedOrderId)?.status === "flagged"
           : false,
-        order_id: isOrder ? key : undefined,
+        order_id: resolvedOrderId ?? undefined,
         created_at: ordered[0].t,
       };
     })
