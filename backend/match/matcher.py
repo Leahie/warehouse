@@ -224,7 +224,10 @@ def match_receipt(
             f"Packing slip shows {qty_dock} {unit} of {item or item_po or 'this item'}; "
             f"PO and bill of lading say {qty_po}. Can you confirm the count?"
         )
-    elif parsed.get("temperature") and not (parsed.get("temperature") or {}).get("unit"):
+    elif temp.get("value") is not None and not temp.get("unit"):
+        # Only ask when a reading was actually given. The parsed temperature is
+        # always a dict, so testing it for truthiness asked every worker to
+        # clarify a temperature they never mentioned.
         status = "pending_clarification"
         kind = "temperature_unit"
         question = "Was this temperature in Fahrenheit or Celsius?"

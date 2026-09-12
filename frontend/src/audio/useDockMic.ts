@@ -10,7 +10,7 @@ const TARGET_RATE = 16000;
 
 export type DockTurn = {
   event_id: string;
-  mode: "receive" | "clarification_answer" | "ambiguous" | "unmatched";
+  mode: "receive" | "clarification_answer" | "ambiguous" | "already_received" | "unmatched";
   candidates?: { po_id: string; supplier: string; score: number }[];
   utterance: string;
   reply: string;

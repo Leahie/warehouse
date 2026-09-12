@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import timezone
 import sys
 import uuid
 from pathlib import Path
@@ -65,6 +66,15 @@ def _jsonify(doc: Any) -> Any:
     if type(doc).__name__ == "ObjectId":
         return str(doc)
     if hasattr(doc, "isoformat") and not isinstance(doc, (str, bytes)):
+        # Mongo stores datetimes as naive UTC, so isoformat() emits no offset and
+        # a browser parses "2026-09-12T21:12:09" as its own local time. West of
+        # UTC that puts fresh records in the future, and anything filtering on
+        # "not later than now" silently drops the newest rows. Say UTC explicitly.
+        if getattr(doc, "tzinfo", None) is None and hasattr(doc, "replace"):
+            try:
+                doc = doc.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                pass
         return doc.isoformat()
     if isinstance(doc, list):
         return [_jsonify(item) for item in doc]

@@ -17,11 +17,13 @@ const seedIds = new Set(seedSessions.map((s) => s.session_id));
 // A scratch conversation so the dock can be demonstrated without a matching
 // order on file. Every turn that does not resolve to an order lands here
 // instead of disappearing.
-const SCRATCH_ID = "VS-SCRATCH";
+const SCRATCH_PREFIX = "VS-S-";
+const isScratch = (id: string | null | undefined) => !!id?.startsWith(SCRATCH_PREFIX);
+const newScratchId = () => `${SCRATCH_PREFIX}${Date.now().toString(36)}`;
 
-function blankScratch(): VoiceSession {
+function blankScratch(id: string = newScratchId()): VoiceSession {
   return {
-    session_id: SCRATCH_ID,
+    session_id: id,
     stage: "parsing",
     is_alert: false,
     created_at: new Date().toISOString(),
@@ -66,18 +68,16 @@ export function VoicePage() {
     contextOrderId: currentOrderRef.current,
     sessionId: currentIdRef.current,
     onTurn: (turn) => {
-      // Keep the exchange where it started. Jumping to the order's own session
-      // the moment it resolves splits one conversation across two threads and
-      // looks like a new chat appearing.
       const viewing = currentIdRef.current;
-      const targetId =
-        viewing && viewing !== SCRATCH_ID
-          ? viewing
-          : viewing === SCRATCH_ID
-            ? SCRATCH_ID
-            : turn.order?.order_id
-              ? `VS-${turn.order.order_id}`
-              : SCRATCH_ID;
+      const orderThread = turn.order?.order_id ? `VS-${turn.order.order_id}` : null;
+
+      // Where the exchange lives. A thread already tied to an order stays put.
+      // An ad-hoc thread that has just identified an order graduates into that
+      // order's conversation, carrying every message with it so nothing splits.
+      const startedIn = viewing ?? newScratchId();
+      const targetId = isScratch(startedIn) && orderThread ? orderThread : startedIn;
+      const migrating = targetId !== startedIn;
+
       const now = new Date().toISOString();
       const heard: ChatMessage = {
         id: `u-${turn.event_id}`,
@@ -96,29 +96,31 @@ export function VoicePage() {
       // Show the exchange now. Waiting for the next poll makes the dock feel
       // broken, and an unresolved turn never arrives from the server at all.
       setOverrides((prev) => {
-        const base =
-          prev[targetId] ??
-          sessionsRef.current.find((s) => s.session_id === targetId) ??
-          (targetId === SCRATCH_ID ? blankScratch() : null);
-        if (!base) return prev;
-        return {
-          ...prev,
-          [targetId]: {
-            ...base,
-            // Once a turn identifies an order, the thread adopts it rather than
-            // the conversation moving elsewhere.
-            order_id: turn.order?.order_id ?? base.order_id,
-            is_alert: turn.order?.status === "flagged" || base.is_alert,
-            stage: turn.mode === "clarification_answer" ? "logging_data" : "confirming",
-            messages: [...base.messages, heard, said],
-          },
+        const find = (id: string) =>
+          prev[id] ?? sessionsRef.current.find((s) => s.session_id === id) ?? null;
+        const carried = migrating ? find(startedIn)?.messages ?? [] : [];
+        const base = find(targetId) ?? blankScratch(targetId);
+        const merged: VoiceSession = {
+          ...base,
+          session_id: targetId,
+          order_id: turn.order?.order_id ?? base.order_id,
+          is_alert: turn.order?.status === "flagged" || base.is_alert,
+          stage: turn.mode === "clarification_answer" ? "logging_data" : "confirming",
+          messages: [...carried, ...base.messages, heard, said],
         };
+        const next: Record<string, VoiceSession> = { ...prev, [targetId]: merged };
+        if (migrating) delete next[startedIn];
+        return next;
       });
-      if (targetId === SCRATCH_ID) {
+
+      if (migrating) {
+        setLocalSessions((prev) => prev.filter((s) => s.session_id !== startedIn));
+      } else if (isScratch(targetId)) {
         setLocalSessions((prev) =>
-          prev.some((s) => s.session_id === SCRATCH_ID) ? prev : [blankScratch(), ...prev],
+          prev.some((s) => s.session_id === targetId) ? prev : [blankScratch(targetId), ...prev],
         );
       }
+
       if (currentIdRef.current !== targetId) {
         setSelectedId(targetId);
         navigate(`/voice/${encodeURIComponent(targetId)}`);
@@ -158,34 +160,38 @@ export function VoicePage() {
         return;
       }
 
-      // If the alert exists in alerts.json but wasn't in seed sessions, dynamically create it
+      // An alert is the outcome of a conversation, so open that conversation --
+      // the worker saying what they counted and the agent questioning it. Only
+      // when no exchange was ever recorded do we fall back to a placeholder, and
+      // it says so rather than presenting itself as the conversation.
       const alert = alerts.find((a) => a.order_id === orderParam);
       if (alert) {
-        const created: VoiceSession = {
+        const placeholder: VoiceSession = {
           session_id: `VS-ALERT-${alert.alert_id}`,
           stage: "done",
           is_alert: true,
           order_id: alert.order_id,
           created_at: alert.created_at,
-          summary: `Alert (${alert.reason}): ${alert.lot_code} · ${alert.supplier}`,
+          summary: `No recorded conversation for ${alert.order_id}`,
           messages: [
             {
-              id: `m-init-${Date.now()}`,
+              id: `m-note-${alert.alert_id}`,
               role: "system",
-              text: "Logging data…",
-              at: alert.created_at,
-            },
-            {
-              id: `m-agent-${Date.now()}`,
-              role: "agent",
-              text: `Alert Record [${alert.alert_id}]: ${alert.reason}. ${alert.ai_summary}`,
+              text:
+                `No voice exchange was recorded for ${alert.order_id}. ` +
+                `This alert was raised from the paperwork: ${alert.reason}.`,
               at: alert.created_at,
             },
           ],
         };
         appliedDeepLink.current = key;
-        setLocalSessions((prev) => [created, ...prev]);
-        setSelectedId(created.session_id);
+        setLocalSessions((prev) =>
+          prev.some((s) => s.session_id === placeholder.session_id)
+            ? prev
+            : [placeholder, ...prev],
+        );
+        setSelectedId(placeholder.session_id);
+        navigate(`/voice/${encodeURIComponent(placeholder.session_id)}`, { replace: true });
       }
     }
   }, [searchParams, sessions]);
@@ -302,12 +308,11 @@ export function VoicePage() {
 
   /** Open an empty conversation that is not attached to any order on file. */
   function openScratch() {
-    setLocalSessions((prev) =>
-      prev.some((s) => s.session_id === SCRATCH_ID) ? prev : [blankScratch(), ...prev],
-    );
-    setOverrides((prev) => (prev[SCRATCH_ID] ? prev : { ...prev, [SCRATCH_ID]: blankScratch() }));
-    setSelectedId(SCRATCH_ID);
-    navigate(`/voice/${encodeURIComponent(SCRATCH_ID)}`);
+    const blank = blankScratch();
+    setLocalSessions((prev) => [blank, ...prev]);
+    setOverrides((prev) => ({ ...prev, [blank.session_id]: blank }));
+    setSelectedId(blank.session_id);
+    navigate(`/voice/${encodeURIComponent(blank.session_id)}`);
   }
 
   return (

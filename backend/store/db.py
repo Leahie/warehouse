@@ -141,6 +141,31 @@ class Store:
             )
         return doc
 
+    def record_agent_reply(
+        self,
+        event_id: str,
+        reply: str,
+        *,
+        session_id: str | None = None,
+        order_id: str | None = None,
+        mode: str | None = None,
+        actor: str = "agent",
+    ) -> None:
+        """The agent's spoken answer is part of the conversation, not a return value.
+
+        Without this the reply lives only in the HTTP response: refresh the page
+        and every agent turn disappears, leaving the raw parse events showing in
+        its place.
+        """
+        if not reply:
+            return
+        self.emit("agent_replied", "voice", actor, "voice_events", event_id, {
+            "reply": reply,
+            "session_id": session_id,
+            "order_id": order_id,
+            "mode": mode,
+        })
+
     def papers_for_po(self, po_id: str) -> dict[str, dict[str, Any] | None]:
         out: dict[str, dict[str, Any] | None] = {
             "purchase_order": None,
@@ -237,6 +262,21 @@ class Store:
         })
         return {k: v for k, v in doc.items() if k != "_id"}
 
+    # A receipt that has been settled -- committed, or flagged and dealt with --
+    # should not be silently written over when someone reads the pallet again.
+    SETTLED_STATUSES = ("committed", "flagged")
+
+    def existing_receipt(self, po_id: str | None, item: str | None) -> dict[str, Any] | None:
+        """An order already checked in against this PO line, if there is one."""
+        if not po_id:
+            return None
+        query: dict[str, Any] = {"po_id": po_id}
+        if item:
+            found = self.db.orders.find_one({**query, "item": item}, {"_id": 0})
+            if found:
+                return found
+        return self.db.orders.find_one(query, {"_id": 0})
+
     def find_candidates(self, parsed: dict[str, Any] | None) -> list[dict[str, Any]]:
         """Purchase orders the worker might have meant, best first.
 
@@ -315,6 +355,21 @@ class Store:
         })
         if status == "committed":
             self.emit("order_committed", "database", actor, "orders", order_id, {"item": order["item"]})
+            # A clean receipt deserves a positive notice, not silence: the
+            # alerts feed is where a supervisor looks, and "nothing appeared"
+            # is indistinguishable from "nothing was received".
+            self.notice(
+                order_id,
+                reason="receipt matched the paperwork",
+                summary=(
+                    f"{order.get('item')} from {order.get('supplier')}: "
+                    f"{order.get('quantity_received')} {order.get('unit') or 'units'} "
+                    f"received against {order.get('quantity_expected')} expected, "
+                    f"lot {order.get('lot_code')}. Purchase order, bill of lading and "
+                    "packing slip all agree."
+                ),
+                actor=actor,
+            )
         if status == "pending_clarification" and data.get("clarification_question"):
             clq_id = f"CLQ-{order_id}"
             clarification_ids.append(clq_id)
@@ -434,6 +489,37 @@ class Store:
                 "severity": severity,
             })
         return alert
+
+    def notice(
+        self,
+        order_id: str,
+        *,
+        reason: str,
+        summary: str | None = None,
+        actor: str = "api",
+    ) -> None:
+        """An informational alert -- a receipt that went right.
+
+        Without one, a clean receipt leaves no trace in the feed a supervisor
+        actually watches, and "nothing appeared" reads the same as "nothing was
+        received".
+        """
+        alert_id = f"ALT-OK-{order_id}"
+        alert = {
+            "alert_id": alert_id,
+            "order_id": order_id,
+            "reason": reason,
+            "ai_summary": summary,
+            "severity": "info",
+            "acknowledged": False,
+            "created_at": _now(),
+        }
+        self.db.alerts.update_one({"alert_id": alert_id}, {"$set": alert}, upsert=True)
+        self.emit("alert_opened", "database", actor, "alerts", alert_id, {
+            "reason": reason,
+            "severity": "info",
+            "order_id": order_id,
+        })
 
     def flag(
         self,
