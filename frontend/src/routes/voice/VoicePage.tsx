@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import voiceData from "@/assets/data/voice_sessions.json";
 import alertsData from "@/assets/data/alerts.json";
@@ -68,13 +68,23 @@ export function VoicePage() {
   });
 
   // Sync with query params (?order=... or ?session=...)
+  //
+  // This effect also depends on `sessions`, which gets a fresh identity on every
+  // poll. Without a guard it re-applies the deep link every few seconds and
+  // yanks the selection back, so a click in the sidebar appears to do nothing.
+  // Honour a given ?order=/?session= once, then leave the user alone.
+  const appliedDeepLink = useRef<string | null>(null);
   useEffect(() => {
     const orderParam = searchParams.get("order");
     const sessionParam = searchParams.get("session");
+    const key = `${sessionParam ?? ""}|${orderParam ?? ""}`;
+    if (key === "|") return;
+    if (appliedDeepLink.current === key) return;
 
     if (sessionParam) {
       const match = sessions.find((s) => s.session_id === sessionParam);
       if (match) {
+        appliedDeepLink.current = key;
         setSelectedId(match.session_id);
         return;
       }
@@ -83,6 +93,7 @@ export function VoicePage() {
     if (orderParam) {
       const match = sessions.find((s) => s.order_id === orderParam);
       if (match) {
+        appliedDeepLink.current = key;
         setSelectedId(match.session_id);
         return;
       }
@@ -112,6 +123,7 @@ export function VoicePage() {
             },
           ],
         };
+        appliedDeepLink.current = key;
         setSessions((prev) => [created, ...prev]);
         setSelectedId(created.session_id);
       }
